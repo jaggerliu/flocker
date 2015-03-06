@@ -439,6 +439,21 @@ class LoopbackBlockDeviceAPIImplementationTests(SynchronousTestCase):
         unattached_directory.makedirs()
         self.assertDirectoryStructure(directory)
 
+    def test_multiple_volumes_attached_to_host(self):
+        """
+        """
+        expected_host = b'192.0.2.123'
+        api = loopbackblockdeviceapi_for_test(test_case=self)
+        volume1 = api.create_volume(size=1234)
+        volume2 = api.create_volume(size=1234)
+        attached_volume1 = api.attach_volume(volume1.blockdevice_id, host=expected_host)
+        attached_volume2 = api.attach_volume(volume2.blockdevice_id, host=expected_host)
+
+        self.assertEqual(
+            [attached_volume1, attached_volume2],
+            api.list_volumes()
+        )
+
     def test_list_unattached_volumes(self):
         """
         ``list_volumes`` returns a ``BlockVolume`` for each unattached volume

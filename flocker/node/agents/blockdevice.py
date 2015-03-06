@@ -190,6 +190,10 @@ class LoopbackBlockDeviceAPI(object):
             host_directory = self._attached_directory.child(host)
             attached_volume = volume.set(host=host)
             host_directory.makedirs()
+            # try:
+            #     host_directory.makedirs()
+            # except OSError:
+            #     pass
             old_path.moveTo(host_directory.child(blockdevice_id))
             return attached_volume
 
