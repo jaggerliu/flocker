@@ -63,13 +63,14 @@ class CreateBlockDeviceDataset(PRecord):
             self.dataset.maximum_size
         )
         volume = api.attach_volume(
-            volume.blockdevice_id, deployer.hostname
+            volume.blockdevice_id, deployer.hostname.encode('ascii')
         )
         device = api.get_device_path(volume.blockdevice_id).path
         self.mountpoint.makedirs()
         check_output(["mkfs", "-t", "ext4", device])
         check_output(["mount", device, self.mountpoint.path])
 
+        return succeed(None)
 
 class IBlockDeviceAPI(Interface):
     """
@@ -207,7 +208,7 @@ class LoopbackBlockDeviceAPI(object):
             volumes.append(volume)
 
         for host_directory in self.root_path.child('attached').children():
-            host_name = host_directory.basename()
+            host_name = host_directory.basename().encode('ascii')
             for child in host_directory.children():
 
                 volume = BlockDeviceVolume(

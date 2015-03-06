@@ -149,11 +149,9 @@ class Cluster(object):
 
             def got_body(body):
                 expected_dataset = dataset_properties.copy()
-                # (Pdb++) dataset
                 # {u'deleted': False, u'dataset_id': u'db41bc86-2d16-4866-ba99-af8eba434755', u'metadata': {u'name': u'my_volume'}, u'maximum_size': 67108864, u'primary': u'172.16.255.250'}
                 del expected_dataset['metadata']
                 del expected_dataset['deleted']
-                import pdb; pdb.set_trace()
                 for dataset in body:
                     dataset.pop("path")
                 return expected_dataset in body
