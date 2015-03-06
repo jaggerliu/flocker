@@ -277,15 +277,29 @@ class BlockDeviceDeployer(object):
         """
         volumes = self.block_device_api.list_volumes()
 
+        manifestations = [_manifestation_from_volume(v)
+                          for v in volumes
+                          if v.host == self.hostname]
+
+        paths={}
+        for manifestation in manifestations:
+            dataset_id = manifestation.dataset.dataset_id
+            mountpath = self._mountpath_for_manifestation(manifestation)
+            paths[dataset_id] = mountpath
+
         state = NodeState(
             hostname=self.hostname,
             running=(),
             not_running=(),
-            manifestations=[_manifestation_from_volume(v)
-                            for v in volumes
-                            if v.host == self.hostname],
+            manifestations=manifestations,
+            paths=paths
         )
         return succeed(state)
+
+    def _mountpath_for_manifestation(self, manifestation):
+       return self._mountroot.child(
+           manifestation.dataset.dataset_id.encode("ascii")
+       )
 
     def calculate_necessary_state_changes(self, local_state,
                                           desired_configuration,
@@ -308,9 +322,7 @@ class BlockDeviceDeployer(object):
         creates = list(
             CreateBlockDeviceDataset(
                 dataset=manifestation.dataset,
-                mountpoint=self._mountroot.child(
-                    manifestation.dataset.dataset_id.encode("ascii")
-                )
+                mountpoint=self._mountpath_for_manifestation(manifestation)
             )
             for manifestation
             in to_create

@@ -65,12 +65,18 @@ class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
         """
         discovering = deployer.discover_local_state()
         state = self.successResultOf(discovering)
+        expected_paths = {}
+        for manifestation in expected_manifestations:
+            dataset_id = manifestation.dataset.dataset_id
+            mountpath = deployer._mountpath_for_manifestation(manifestation)
+            expected_paths[dataset_id] = mountpath
         self.assertEqual(
             NodeState(
                 hostname=deployer.hostname,
                 running=(),
                 not_running=(),
                 manifestations=expected_manifestations,
+                paths=expected_paths,
             ),
             state
         )
