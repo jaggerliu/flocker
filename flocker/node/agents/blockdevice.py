@@ -8,6 +8,8 @@ devices.
 from uuid import uuid4
 from subprocess import check_output
 
+from eliot import ActionType, Field, Logger
+
 from zope.interface import implementer, Interface
 
 from characteristic import attributes
@@ -47,6 +49,32 @@ class UnattachedVolume(VolumeException):
     pass
 
 
+DATASET = Field(
+    u"dataset",
+    lambda dataset: dataset.dataset_id,
+    u"The unique identifier of a dataset."
+)
+
+MOUNTPOINT = Field(
+    u"mountpoint",
+    lambda path: path.path,
+    u"The absolute path to the location on the node where the dataset will be "
+    u"mounted.",
+)
+
+DEVICE = Field(
+    u"block_device",
+    lambda path: path.path,
+    u"The absolute path to the block device file on the node where the "
+    u"dataset is attached.",
+)
+
+CREATE_BLOCK_DEVICE_DATASET = ActionType(
+    u"agent:blockdevice:create",
+    [DATASET, MOUNTPOINT],
+    [DEVICE],
+    u"A block-device-backed dataset is being created.",
+)
 
 @implementer(IStateChange)
 class CreateBlockDeviceDataset(PRecord):
@@ -57,19 +85,25 @@ class CreateBlockDeviceDataset(PRecord):
     dataset = field()
     mountpoint = field(mandatory=True)
 
-    def run(self, deployer):
-        api = deployer.block_device_api
-        volume = api.create_volume(
-            self.dataset.maximum_size
-        )
-        volume = api.attach_volume(
-            volume.blockdevice_id, deployer.hostname.encode('ascii')
-        )
-        device = api.get_device_path(volume.blockdevice_id).path
-        self.mountpoint.makedirs()
-        check_output(["mkfs", "-t", "ext4", device])
-        check_output(["mount", device, self.mountpoint.path])
+    logger = Logger()
 
+    def run(self, deployer):
+        with CREATE_BLOCK_DEVICE_DATASET(
+                self.logger,
+                dataset=self.dataset, mountpoint=self.mountpoint
+        ) as action:
+            api = deployer.block_device_api
+            volume = api.create_volume(
+                self.dataset.maximum_size
+            )
+            volume = api.attach_volume(
+                volume.blockdevice_id, deployer.hostname.encode('ascii')
+            )
+            device = api.get_device_path(volume.blockdevice_id)
+            self.mountpoint.makedirs()
+            check_output(["mkfs", "-t", "ext4", device.path])
+            check_output(["mount", device.path, self.mountpoint.path])
+            action.add_success_fields(block_device=device)
         return succeed(None)
 
 class IBlockDeviceAPI(Interface):
