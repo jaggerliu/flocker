@@ -5,13 +5,24 @@ Rackspace provisioner.
 """
 
 from ._libcloud import monkeypatch, LibcloudProvisioner
-from ._install import provision, run
+from ._install import (
+    provision, run,
+    task_upgrade_kernel_centos,
+)
 
 
 def provision_rackspace(node, package_source, distribution, variants):
     """
     Provision flocker on this node.
     """
+    if distribution in ('centos-7',):
+        run(
+            username='root',
+            address=node.address,
+            commands=task_upgrade_kernel_centos(),
+        )
+        node.reboot()
+
     commands = (
         provision(
             package_source=package_source,
@@ -33,6 +44,7 @@ def provision_rackspace(node, package_source, distribution, variants):
 
 IMAGE_NAMES = {
     'fedora-20': u'Fedora 20 (Heisenbug) (PVHVM)',
+    'centos-7': u'CentOS 7 (PVHVM)',
 }
 
 
