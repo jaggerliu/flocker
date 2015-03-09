@@ -12,7 +12,8 @@ from ._install import (
     task_install_ssh_key,
     task_upgrade_kernel,
     task_upgrade_selinux,
-    task_open_control_firewall,
+    task_enable_flocker_control,
+    task_enable_flocker_agent,
 )
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     'task_install_ssh_key',
     'task_upgrade_kernel',
     'task_upgrade_selinux',
-    'task_open_control_firewall',
+    'task_enable_flocker_control',
+    'task_enable_flocker_agent',
 ]

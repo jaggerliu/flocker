@@ -993,6 +993,9 @@ class OmnibusPackageBuilderTests(TestCase):
                         # Ubuntu firewall configuration
                         package_files.child('ufw-applications.d'):
                             FilePath("/etc/ufw/applications.d/"),
+                        # Systemd configuration
+                        package_files.child('systemd'):
+                            FilePath("/usr/lib/systemd/system/"),
                     },
                     name='clusterhq-flocker-node',
                     prefix=expected_prefix,

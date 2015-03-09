@@ -5,10 +5,7 @@ Rackspace provisioner.
 """
 
 from ._libcloud import monkeypatch, LibcloudProvisioner
-from ._install import (
-    provision, run,
-    task_open_control_firewall
-)
+from ._install import provision, run
 
 
 def provision_rackspace(node, package_source, distribution, variants):
@@ -21,7 +18,6 @@ def provision_rackspace(node, package_source, distribution, variants):
             distribution=node.distribution,
             variants=variants,
         )
-        + task_open_control_firewall()
     )
     run(
         username='root',

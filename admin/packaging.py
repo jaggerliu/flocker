@@ -890,6 +890,9 @@ def omnibus_package_builder(
                     # Ubuntu firewall configuration
                     package_files.child('ufw-applications.d'):
                         FilePath("/etc/ufw/applications.d/"),
+                    # SystemD configuration
+                    package_files.child('systemd'):
+                        FilePath('/usr/lib/systemd/system'),
                 },
                 name='clusterhq-flocker-node',
                 prefix=FilePath('/'),

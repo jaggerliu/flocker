@@ -162,14 +162,40 @@ def configure_firewalld(rule):
     ]
 
 
-def task_open_control_firewall():
+def task_enable_flocker_control():
     """
-    Open the firewall for flocker-control.
+    Eanble flocker-control, and open the firewall for it.
     """
     return reduce(list.__add__, [
         configure_firewalld(['--add-service', service])
         for service in ['flocker-control-api', 'flocker-control-agent']
-    ])
+    ]) + [
+        Run.from_args(['systemctl', 'enable', 'flocker-control']),
+        Run.from_args(['systemctl', 'start', 'flocker-control']),
+    ]
+
+
+AGENT_CONFIG = """\
+FLOCKER_NODE_NAME = %(node_name)s
+FLOCKER_CONTROL_NODE = %(control_node)s
+"""
+
+
+def task_enable_flocker_agent(node_name, control_node):
+    """
+    Configure and eanble flocker-agent.
+    """
+    return [
+        Put(
+            path='/etc/sysconfig/flocker-agent',
+            content=AGENT_CONFIG % {
+                'node_name': node_name,
+                'control_node': control_node
+            },
+        ),
+        Run.from_args(['systemctl', 'enable', 'flocker-agent']),
+        Run.from_args(['systemctl', 'start', 'flocker-agent']),
+    ]
 
 
 def task_create_flocker_pool_file():
@@ -338,3 +364,26 @@ def provision(distribution, package_source, variants):
     commands += task_create_flocker_pool_file()
     commands += task_pull_docker_images()
     return commands
+
+
+def configure_cluster(control_node, agent_nodes):
+    """
+    Configure flocker-control and flocker-agent on a collection of nodes.
+
+    :param bytes control_node: The address of the control node.
+    :param list agent_nodes: List of addresses of agent nodes.
+    """
+    run(
+        username='root',
+        address=control_node,
+        commands=task_enable_flocker_control(),
+    )
+    for node in agent_nodes:
+        run(
+            username='root',
+            address=node,
+            commands=task_enable_flocker_agent(
+                node_name=node,
+                control_node=control_node,
+            ),
+        )
