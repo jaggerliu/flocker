@@ -409,6 +409,7 @@ class NodeState(PRecord):
     # XXX: Consider an issue for a new `DatasetState` so that dataset
     # convergence agents don't have to worry about running and not_running
     # applications.
+    # See https://github.com/ClusterHQ/flocker/pull/1206#issue-60483012
     manifestations = field(type=PSet, initial=pset(), factory=pset,
                            mandatory=True)
     paths = field(type=_PathMap, initial=_PathMap(), factory=_PathMap.create,

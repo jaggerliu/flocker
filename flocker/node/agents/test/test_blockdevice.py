@@ -198,6 +198,61 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(SynchronousTestCase
             changes
         )
 
+    def test_local_state_overrides_cluster_state(self):
+        """
+        ``BlockDeviceDeployer.calculate_necessary_state_changes`` uses the
+        given local state to override cluster state, since the latter may be
+        stale.
+
+        XXX: This may not be necessary since we don't currently use
+        cluster_state in our state change calculation.
+        """
+        local_hostname = b"192.0.2.1"
+        dataset_id = unicode(uuid4())
+        dataset = Dataset(dataset_id=dataset_id)
+        manifestation = Manifestation(
+            dataset=dataset, primary=True
+        )
+
+        # Discovered local state reveals the configured manifestation is
+        # already on this node.
+        local_state = NodeState(
+            hostname=local_hostname,
+            manifestations=[manifestation],
+            paths={dataset_id: FilePath('/foo/bar')}
+        )
+
+        # Configuration requires a manifestation on this node.
+        desired_configuration = Deployment(
+            nodes=frozenset({
+                Node(
+                    hostname=local_hostname,
+                    manifestations={dataset_id: manifestation},
+                )
+            })
+        )
+
+        # Control service still reports that this node has no manifestations.
+        current_cluster_state = Deployment(
+            nodes=frozenset([Node(hostname=local_hostname)])
+        )
+
+        # API shouldn't be called upon
+        api = object()
+        deployer = BlockDeviceDeployer(
+            hostname=local_hostname,
+            block_device_api=api,
+        )
+
+        actual_changes = deployer.calculate_necessary_state_changes(
+            local_state, desired_configuration, current_cluster_state
+        )
+        # If Deployer is buggy and not overriding cluster state
+        # with local state this would result in a dataset creation action:
+        expected_changes = InParallel(changes=[])
+
+        self.assertEqual(expected_changes, actual_changes)
+
 
 class IBlockDeviceAPITestsMixin(object):
     """
