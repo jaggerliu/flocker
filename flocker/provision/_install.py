@@ -19,9 +19,10 @@ ZFS_REPO = {
     'centos-7': "http://archive.zfsonlinux.org/epel/zfs-release.el7.noarch.rpm"
 }
 CLUSTERHQ_REPO = {
-    'fedora-20': "https://storage.googleapis.com/archive.clusterhq.com/"
+    'fedora-20': "https://s3.amazonaws.com/clusterhq-archive/"
                  "fedora/clusterhq-release$(rpm -E %dist).noarch.rpm",
-    'centos-7': "does-not-exist",
+    'centos-7': "https://s3.amazonaws.com/clusterhq-archive/"
+                "centos/clusterhq-release$(rpm -E %dist).noarch.rpm",
 }
 
 
@@ -226,8 +227,9 @@ def task_create_flocker_pool_file():
     ]
 
 
-def task_install_flocker(package_source=PackageSource(),
-                         distribution=None):
+def task_install_flocker(
+        distribution=None,
+        package_source=PackageSource()):
     """
     Install flocker.
 
@@ -237,8 +239,7 @@ def task_install_flocker(package_source=PackageSource(),
     """
     commands = [
         Run(command="yum install -y " + ZFS_REPO[distribution]),
-        # Not for centos yet
-        # Run(command="yum install -y " + CLUSTERHQ_REPO[distribution])
+        Run(command="yum install -y " + CLUSTERHQ_REPO[distribution])
     ]
 
     if package_source.branch:

@@ -347,7 +347,7 @@ You must also install the ZFS package repository.
 The following commands will install the two repositories and the ``clusterhq-flocker-node`` package.
 Paste them into a root console on the target node:
 
-.. task:: install_flocker
+.. task:: install_flocker fedora-20
    :prompt: [root@node]#
 
 Installing on Centos 7
@@ -355,7 +355,7 @@ Installing on Centos 7
 
 Flocker requires the latest available kernel.
 
-.. task:: upggrade_kernel_centos
+.. task:: upgrade_kernel_centos
 
 Flocker requires ZFS, and installing ZFS requires that the running kernel be the one that will eventually be used.
 Thus we need to reboot into the new kernel.
@@ -370,7 +370,7 @@ You must also install the ZFS package repository.
 The following commands will install the two repositories and the ``flocker-node`` package.
 Paste them into a root console on the target node:
 
-.. task:: install_flocker
+.. task:: install_flocker centos-7
    :prompt: [root@node]#
 
 
