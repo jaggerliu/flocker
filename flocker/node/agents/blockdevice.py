@@ -5,6 +5,7 @@ This module implements the parts of a block-device based dataset
 convergence agent that can be re-used against many different kinds of block
 devices.
 """
+
 from uuid import uuid4
 from subprocess import check_output
 
@@ -20,6 +21,7 @@ from twisted.python.filepath import FilePath
 
 from .. import IDeployer, IStateChange, InParallel
 from ...control import Node, NodeState, Manifestation, Dataset
+
 
 class VolumeException(Exception):
     """
@@ -106,39 +108,79 @@ class CreateBlockDeviceDataset(PRecord):
             action.add_success_fields(block_device=device)
         return succeed(None)
 
+
 class IBlockDeviceAPI(Interface):
     """
+    Common operations provided by all block device backends.
     """
-
     def create_volume(size):
         """
+        Create a new block device.
+
+        :param int size: The size of the new block device in bytes.
+        :returns: A ``BlockDeviceVolume``.
         """
 
     def attach_volume(blockdevice_id, host):
         """
+        Attach ``blockdevice_id`` to ``host``.
+
+        :param unicode blockdevice_id: The unique identifier for the block
+            device being attached.
+        :raises UnknownVolume: If the supplied ``blockdevice_id`` does not
+            exist.
+        :raises AlreadyAttachedVolume: If the supplied ``blockdevice_id`` is
+            already attached.
+        :returns: A ``BlockDeviceVolume`` with a ``host`` attribute set to
+            ``host``.
         """
 
     def list_volumes():
         """
+        List all the block devices available via the back end API.
+
+        :returns: A ``list`` of ``BlockDeviceVolume``s.
         """
 
     def get_device_path(blockdevice_id):
         """
+        Calculate the path at which ``blockdevice_id`` will be mounted on the
+        host when attached.
+
+        :param unicode blockdevice_id: The unique identifier for the block
+            device.
+        :returns: A ``BlockDeviceVolume`` with a ``host`` attribute set to
+            ``host``.
+
         """
 
 
 class BlockDeviceVolume(PRecord):
     """
+    A block device that may be attached to a host.
+
+    :ivar unicode blockdevice_id: The unique identifier of the block device.
+    :ivar int size: The size of the block device.
+    :ivar bytes host: The IP address of the host to which the block device is
+        attached or ``None`` if it is currently unattached.
     """
     blockdevice_id = field(type=unicode, mandatory=True)
     size = field(type=int, mandatory=True)
-    # XXX: This should be hostname, for consistency.
+    # XXX: Should be hostname, for consistency of is host a better name since
+    # we currently only expect IP addresses?
     host = field(type=(bytes, type(None)), initial=None)
 
 
 def device_for_path(file_path):
-    device_path =  check_output(
-        ["losetup", "--noheadings", "-O", "name", "--associated", file_path.path]
+    """
+    :param FilePath file_path: A path which may be associated with a loopback
+        device.
+    :returns: A ``FilePath`` to the loopback device if one is found, or
+        ``None`` if no device exists.
+    """
+    device_path = check_output(
+        ["losetup", "--noheadings", "--output", "name", "--associated",
+         file_path.path]
     ).strip()
     if device_path != b"":
         return FilePath(device_path.strip())
@@ -149,6 +191,8 @@ def device_for_path(file_path):
 @attributes(['root_path'])
 class LoopbackBlockDeviceAPI(object):
     """
+    A simulated ``IBlockDeviceAPI`` which creates loopback devices backed by
+    files located beneath the supplied ``root_path``.
     """
     _attached_directory_name = 'attached'
     _unattached_directory_name = 'unattached'
@@ -156,6 +200,10 @@ class LoopbackBlockDeviceAPI(object):
     @classmethod
     def from_path(cls, root_path):
         """
+        :param bytes root_path: The path to a directory in which loop back
+            backing files will be created. The directory is created if it does
+            not already exist.
+        :returns: A ``LoopbackBlockDeviceAPI`` with the supplied ``root_path``.
         """
         api = cls(root_path=FilePath(root_path))
         api._initialise_directories()
@@ -163,6 +211,8 @@ class LoopbackBlockDeviceAPI(object):
 
     def _initialise_directories(self):
         """
+        Create the root and sub-directories in which loopback files will be
+        created.
         """
         self._unattached_directory = self.root_path.child(
             self._unattached_directory_name)
@@ -180,12 +230,13 @@ class LoopbackBlockDeviceAPI(object):
         except OSError:
             pass
 
-
     def get_device_path(self, blockdevice_id):
         volume = self._get(blockdevice_id)
 
         if volume.host is not None:
-            volume_path = self._attached_directory.descendant([volume.host, volume.blockdevice_id])
+            volume_path = self._attached_directory.descendant(
+                [volume.host, volume.blockdevice_id]
+            )
             device_path = device_for_path(volume_path)
             if device_path is None:
                 check_output(["losetup", "--find", volume_path.path])
@@ -196,8 +247,10 @@ class LoopbackBlockDeviceAPI(object):
 
     def create_volume(self, size):
         """
-        * create a file of some size (maybe size is required parameter)
-        * put it in the IaaS's "unattached" directory
+        Create a file of some size and put it in the ``unattached`` directory.
+
+        See ``IBlockDeviceAPI.create_volume`` for parameter and return type
+        documentation.
         """
         volume = BlockDeviceVolume(
             blockdevice_id=unicode(uuid4()),
@@ -216,7 +269,10 @@ class LoopbackBlockDeviceAPI(object):
 
     def attach_volume(self, blockdevice_id, host):
         """
-        * move file into per-host (eg named after node ip) directory
+        Move an existing ``unattached`` file into a per-host directory.
+
+        See ``IBlockDeviceAPI.attach_volume`` for parameter and return type
+        documentation.
         """
         volume = self._get(blockdevice_id)
         if volume.host is None:
@@ -234,7 +290,11 @@ class LoopbackBlockDeviceAPI(object):
 
     def list_volumes(self):
         """
-        * list all files in "unattached" directory and all per-host directories
+        Return ``BlockDeviceVolume`` instances for all the files in the
+        ``unattached`` directory and all per-host directories.
+
+        See ``IBlockDeviceAPI.list_volumes`` for parameter and return type
+        documentation.
         """
         volumes = []
         for child in self.root_path.child('unattached').children():
@@ -281,7 +341,7 @@ class BlockDeviceDeployer(object):
                           for v in volumes
                           if v.host == self.hostname]
 
-        paths={}
+        paths = {}
         for manifestation in manifestations:
             dataset_id = manifestation.dataset.dataset_id
             mountpath = self._mountpath_for_manifestation(manifestation)
@@ -297,9 +357,9 @@ class BlockDeviceDeployer(object):
         return succeed(state)
 
     def _mountpath_for_manifestation(self, manifestation):
-       return self._mountroot.child(
-           manifestation.dataset.dataset_id.encode("ascii")
-       )
+        return self._mountroot.child(
+            manifestation.dataset.dataset_id.encode("ascii")
+        )
 
     def calculate_necessary_state_changes(self, local_state,
                                           desired_configuration,
