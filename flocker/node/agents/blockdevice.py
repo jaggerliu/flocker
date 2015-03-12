@@ -320,6 +320,10 @@ class LoopbackBlockDeviceAPI(object):
 
 def _manifestation_from_volume(volume):
     """
+    :param BlockDeviceVolume volume: The block device which has the
+        manifestation of a dataset.
+    :returns: A primary ``Manifestation`` of a ``Dataset`` with the same id as
+        the supplied ``BlockDeviceVolume``.
     """
     dataset = Dataset(dataset_id=volume.blockdevice_id)
     return Manifestation(dataset=dataset, primary=True)
@@ -329,12 +333,17 @@ def _manifestation_from_volume(volume):
 @attributes(["hostname", "block_device_api"])
 class BlockDeviceDeployer(object):
     """
+    An ``IDeployer`` that operates on ``IBlockDeviceAPI`` providers.
+
+    :param bytes hostname: The IP address of the node that has this deployer.
+    :param IBlockDeviceAPI block_device_api: The block device API that will be
+        called upon to perform block device operations.
+    :ivar FilePath _mountroot: The directory where block devices will be
+        mounted.
     """
     _mountroot = FilePath(b"/flocker")
 
     def discover_local_state(self):
-        """
-        """
         volumes = self.block_device_api.list_volumes()
 
         manifestations = [_manifestation_from_volume(v)
@@ -357,6 +366,13 @@ class BlockDeviceDeployer(object):
         return succeed(state)
 
     def _mountpath_for_manifestation(self, manifestation):
+        """
+        Calculate a ``Manifestation`` mount point.
+
+        :param Manifestation manifestation: The manifestation of a dataset that
+            will be mounted.
+        :returns: A ``FilePath`` of the mount point.
+        """
         return self._mountroot.child(
             manifestation.dataset.dataset_id.encode("ascii")
         )
@@ -364,8 +380,6 @@ class BlockDeviceDeployer(object):
     def calculate_necessary_state_changes(self, local_state,
                                           desired_configuration,
                                           current_cluster_state):
-        """
-        """
         potential_configs = list(
             node for node in desired_configuration.nodes
             if node.hostname == self.hostname
