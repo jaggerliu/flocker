@@ -149,9 +149,13 @@ class Cluster(object):
 
             def got_body(body):
                 expected_dataset = dataset_properties.copy()
-                # {u'deleted': False, u'dataset_id': u'db41bc86-2d16-4866-ba99-af8eba434755', u'metadata': {u'name': u'my_volume'}, u'maximum_size': 67108864, u'primary': u'172.16.255.250'}
+                # We're trying to match the configured dataset with a dataset
+                # returned by the state API, but dataset state doesn't include
+                # these attributes.
                 del expected_dataset['metadata']
                 del expected_dataset['deleted']
+                # The dataset state dictionaries contain a path which isn't
+                # part of the configuration datasets.
                 for dataset in body:
                     dataset.pop("path")
                 return expected_dataset in body
@@ -245,7 +249,8 @@ def cluster_for_test(test_case, node_addresses, agent_command):
     :param TestCase test_case: The test case instance on which to register
         cleanup operations.
     :param list node_address: The IPv4 addresses of the nodes in the cluster.
-    :param bytes agent_command: The entry point for the agent to run on each node.
+    :param bytes agent_command: The entry point for the agent to run on each
+        node.
     :returns: A ``Cluster`` instance.
     """
     # Start servers; eventually we will have these already running on
@@ -310,7 +315,9 @@ def wait_for_cluster(test_case, node_count, agent_command):
     getting_nodes = get_nodes(test_case, node_count)
 
     getting_nodes.addCallback(
-        lambda nodes: create_cluster_and_wait_for_api(test_case, nodes, agent_command)
+        lambda nodes: create_cluster_and_wait_for_api(
+            test_case, nodes, agent_command
+        )
     )
 
     return getting_nodes
@@ -334,7 +341,10 @@ class DatasetAPITestsMixin(object):
             actual cluster state.
         """
         # Create a 1 node cluster
-        waiting_for_cluster = wait_for_cluster(test_case=self, node_count=1, agent_command=self.agent_command)
+        waiting_for_cluster = wait_for_cluster(
+            test_case=self, node_count=1, agent_command=self.agent_command
+        )
+
         # Configure a dataset on node1
         def configure_dataset(cluster):
             """
@@ -379,7 +389,9 @@ def make_dataset_api_tests(agent_command):
     return Tests
 
 
-class GenericLoopbackDatasetAPITests(make_dataset_api_tests(b'flocker-dataset-agent')):
+class GenericLoopbackDatasetAPITests(
+        make_dataset_api_tests(b'flocker-dataset-agent')
+):
     """
     Acceptance tests for API operations performed by ``flocker-dataset-agent``.
     """
