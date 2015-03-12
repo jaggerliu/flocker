@@ -285,6 +285,8 @@ def create_cluster_and_wait_for_api(test_case, node_addresses, agent_command):
     :param TestCase test_case: The test case instance on which to register
         cleanup operations.
     :param list node_addresses: The IPv4 addresses of the nodes in the cluster.
+    :param bytes agent_command: The entry point for the agent to run on each
+        node.
     :returns: A ``Cluster`` instance.
     """
     cluster = cluster_for_test(test_case, node_addresses, agent_command)
@@ -300,6 +302,8 @@ def wait_for_cluster(test_case, node_count, agent_command):
     :param TestCase test_case: The test case instance on which to register
         cleanup operations.
     :param list node_count: The number of nodes to create in the cluster.
+    :param bytes agent_command: The entry point for the agent to run on each
+        node.
     :returns: A ``Deferred`` which fires with a ``Cluster`` instance when the
         ``control_service`` is accepting API requests.
     """
