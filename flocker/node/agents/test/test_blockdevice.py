@@ -103,7 +103,9 @@ class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
             new_volume.blockdevice_id, self.expected_hostname
         )
         expected_dataset = Dataset(dataset_id=attached_volume.blockdevice_id)
-        expected_manifestation = Manifestation(dataset=expected_dataset, primary=True)
+        expected_manifestation = Manifestation(
+            dataset=expected_dataset, primary=True
+        )
         self.assertDiscoveredState(self.deployer, [expected_manifestation])
 
     def test_only_remote_device(self):
@@ -124,14 +126,16 @@ class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
         self.assertDiscoveredState(self.deployer, [])
 
 
-class BlockDeviceDeployerCalculateNecessaryStateChangesTests(SynchronousTestCase):
+class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
+        SynchronousTestCase
+):
     """
     Tests for ``BlockDeviceDeployer.calculate_necessary_state_changes``.
     """
     def test_no_devices_no_local_datasets(self):
         """
-        If no devices exist and no datasets are part of the configuration for the
-        deployer's node, no state changes are calculated.
+        If no devices exist and no datasets are part of the configuration for
+        the deployer's node, no state changes are calculated.
         """
         dataset_id = unicode(uuid4())
         manifestation = Manifestation(
@@ -303,7 +307,9 @@ class IBlockDeviceAPITestsMixin(object):
         """
         host = b'192.0.2.123'
         new_volume = self.api.create_volume(size=1234)
-        attached_volume = self.api.attach_volume(new_volume.blockdevice_id, host=host)
+        attached_volume = self.api.attach_volume(
+            new_volume.blockdevice_id, host=host
+        )
 
         self.assertRaises(
             AlreadyAttachedVolume,
@@ -318,7 +324,9 @@ class IBlockDeviceAPITestsMixin(object):
         another host raises ``AlreadyAttachedVolume``.
         """
         new_volume = self.api.create_volume(size=1234)
-        attached_volume = self.api.attach_volume(new_volume.blockdevice_id, host=b'192.0.2.123')
+        attached_volume = self.api.attach_volume(
+            new_volume.blockdevice_id, host=b'192.0.2.123'
+        )
 
         self.assertRaises(
             AlreadyAttachedVolume,
@@ -546,7 +554,6 @@ class LoopbackBlockDeviceAPIImplementationTests(SynchronousTestCase):
          .setContent(b'x' * expected_size))
         self.assertEqual([blockdevice_volume], api.list_volumes())
 
-
     def test_list_attached_volumes(self):
         """
         ``list_volumes`` returns a ``BlockVolume`` for each attached volume
@@ -605,7 +612,9 @@ class CreateBlockDeviceDatasetTests(SynchronousTestCase):
         dataset_id = unicode(uuid4())
         mountpoint = deployer._mountroot.child(dataset_id.encode("ascii"))
         dataset = Dataset(dataset_id=dataset_id, maximum_size=1024 * 1024 * 10)
-        change = CreateBlockDeviceDataset(dataset=dataset, mountpoint=mountpoint)
+        change = CreateBlockDeviceDataset(
+            dataset=dataset, mountpoint=mountpoint
+        )
         change.run(deployer)
 
         [volume] = api.list_volumes()
