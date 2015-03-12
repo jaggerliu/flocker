@@ -479,8 +479,8 @@ class DatasetAgentScriptTests(SynchronousTestCase):
 
     def test_agent_loop_service(self):
         """
-        ``DatasetAgentScript.main`` creates ``AgentLoopService`` configured with
-        the destination given by the options.
+        ``DatasetAgentScript.main`` creates ``AgentLoopService`` configured
+        with the destination given by the options.
         """
         deployer = object()
         reactor = MemoryCoreReactor()
@@ -511,6 +511,7 @@ class DatasetAgentScriptTests(SynchronousTestCase):
         hostname given by the options.
         """
         spied = []
+
         def deployer_factory(hostname):
             spied.append(hostname)
             return object()
@@ -533,19 +534,19 @@ def make_amp_agent_options_tests(options_type):
 
         def test_default_port(self):
             """
-            The default AMP destination port configured by ``ZFSAgentOptions`` is
-            4524.
+            The default AMP destination port configured by ``ZFSAgentOptions``
+            is 4524.
             """
             self.options.parseOptions([b"1.2.3.4", b"example.com"])
             self.assertEqual(self.options["destination-port"], 4524)
 
         def test_custom_port(self):
             """
-            The ``--destination-port`` command-line option allows configuring the
-            destination port.
+            The ``--destination-port`` command-line option allows configuring
+            the destination port.
             """
             self.options.parseOptions([b"--destination-port", b"1234",
-                                  b"1.2.3.4", b"example.com"])
+                                       b"1.2.3.4", b"example.com"])
             self.assertEqual(self.options["destination-port"], 1234)
 
         def test_host(self):
@@ -554,7 +555,9 @@ def make_amp_agent_options_tests(options_type):
             destination host.
             """
             self.options.parseOptions([b"1.2.3.4", b"control.example.com"])
-            self.assertEqual(self.options["destination-host"], u"control.example.com")
+            self.assertEqual(
+                self.options["destination-host"], u"control.example.com"
+            )
 
         def test_hostname(self):
             """
@@ -567,7 +570,9 @@ def make_amp_agent_options_tests(options_type):
     return Tests
 
 
-class DatasetAgentOptionsTests(make_amp_agent_options_tests(DatasetAgentOptions)):
+class DatasetAgentOptionsTests(
+        make_amp_agent_options_tests(DatasetAgentOptions)
+):
     """
     Tests for ``DatasetAgentOptions``.
     """
