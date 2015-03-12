@@ -319,6 +319,9 @@ def wait_for_cluster(test_case, node_count, agent_command):
 class DatasetAPITestsMixin(object):
     """
     Tests for the dataset API.
+
+    :ivar bytes agent_command: The entry point for the agent to run on each
+        node under test.
     """
     agent_command = None
 
@@ -364,9 +367,12 @@ class DatasetAPITestsMixin(object):
 
 
 def make_dataset_api_tests(agent_command):
+    """
+    :param bytes agent_command: The entry point for the agent to run on each
+        node.
+    :return: An ``IDatasetAPI`` interface ``TestCase``.
+    """
     class Tests(DatasetAPITestsMixin, TestCase):
-        """
-        """
         def setUp(self):
             self.agent_command = agent_command
 
@@ -375,21 +381,28 @@ def make_dataset_api_tests(agent_command):
 
 class GenericLoopbackDatasetAPITests(make_dataset_api_tests(b'flocker-dataset-agent')):
     """
+    Acceptance tests for API operations performed by ``flocker-dataset-agent``.
     """
 
 
 class GenericZFSDatasetAPITests(make_dataset_api_tests(b'flocker-zfs-agent')):
     """
+    Acceptance tests for API operations performed by ``flocker-zfs-agent``.
     """
 
 
 class LegacyZFSDatasetAPITests(make_dataset_api_tests(b'flocker-zfs-agent')):
+    """
+    Acceptance tests for those API operations which are currently only
+    supported by ``flocker-zfs-agent``.
+    """
     def test_dataset_move(self):
         """
         A dataset can be moved from one node to another.
         """
         # Create a 2 node cluster
-        waiting_for_cluster = wait_for_cluster(test_case=self, node_count=2, agent_command=self.agent_command)
+        waiting_for_cluster = wait_for_cluster(
+            test_case=self, node_count=2, agent_command=self.agent_command)
 
         # Configure a dataset on node1
         def configure_dataset(cluster):
