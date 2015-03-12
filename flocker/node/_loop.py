@@ -264,10 +264,6 @@ class ConvergenceLoop(object):
         d = self.deployer.discover_local_state()
 
         def got_local_state(local_state):
-            # XXX Update cluster_state here and then no need to pass local
-            # state to calculate_necessary_state_changes.  Avoids having to
-            # modify all IDeployers and needs only one test.
-            # See https://clusterhq.atlassian.net/browse/FLOC-1535
             self.client.callRemote(NodeStateCommand, node_state=local_state)
             action = self.deployer.calculate_necessary_state_changes(
                 local_state, self.configuration, self.cluster_state)
