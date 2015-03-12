@@ -1,9 +1,8 @@
 # Copyright Hybrid Logic Ltd.  See LICENSE file for details.
-# -*- test-case-name: flocker.node.test.test_script,flocker.node.functional.test_script -*-
+# -*- test-case-name: flocker.node.test.test_script,flocker.node.functional.test_script -*- # noqa
 
 """
-The command-line ``flocker-changestate`` and ``flocker-reportstate``
-tools.
+The command-line ``flocker-changestate`` and ``flocker-reportstate`` tools.
 """
 
 import sys
