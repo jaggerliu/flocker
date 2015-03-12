@@ -25,6 +25,9 @@ from ...control import Node, NodeState, Manifestation, Dataset
 
 class VolumeException(Exception):
     """
+    A base class for exceptions raised by  ``IBlockDeviceAPI`` operations.
+
+    :param unicode blockdevice_id: The unique identifier of the block device.
     """
     def __init__(self, blockdevice_id):
         if not isinstance(blockdevice_id, unicode):
@@ -39,16 +42,21 @@ class VolumeException(Exception):
 
 class UnknownVolume(VolumeException):
     """
+    The block device could not be found.
     """
 
 
 class AlreadyAttachedVolume(VolumeException):
     """
+    A failed attempt to attach a block device that is already attached.
     """
 
 
 class UnattachedVolume(VolumeException):
-    pass
+    """
+    An attempt was made to operate on an unattached volume but the operation
+    requires the volume to be attached.
+    """
 
 
 DATASET = Field(
@@ -78,11 +86,16 @@ CREATE_BLOCK_DEVICE_DATASET = ActionType(
     u"A block-device-backed dataset is being created.",
 )
 
+
 @implementer(IStateChange)
 class CreateBlockDeviceDataset(PRecord):
     """
     An operation to create a new dataset on a newly created volume with a newly
     initialized filesystem.
+
+    :ivar Dataset dataset: The dataset for which to create a block device.
+    :ivar FilePath mountpoint: The path at which to mount the created device.
+    :ivar Logger logger: An Eliot ``Logger``.
     """
     dataset = field()
     mountpoint = field(mandatory=True)
@@ -90,6 +103,17 @@ class CreateBlockDeviceDataset(PRecord):
     logger = Logger()
 
     def run(self, deployer):
+        """
+        Create a block device, attach it to the host of the supplied
+        ``deployer``, create an ``ext4`` filesystem on the device and mount it.
+
+        Operations are performed synchronously.
+
+        See ``IStateChange.run`` for general argument and return type
+        documentation.
+
+        :returns: An already fired ``Deferred`` with result ``None``.
+        """
         with CREATE_BLOCK_DEVICE_DATASET(
                 self.logger,
                 dataset=self.dataset, mountpoint=self.mountpoint
