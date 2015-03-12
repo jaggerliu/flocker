@@ -1,6 +1,9 @@
+# Copyright Hybrid Logic Ltd.  See LICENSE file for details.
+
 """
 Tests for ``flocker.node.agents.blockdevice``.
 """
+
 from uuid import uuid4
 
 from zope.interface.verify import verifyObject
@@ -256,6 +259,7 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(SynchronousTestCase
 
 class IBlockDeviceAPITestsMixin(object):
     """
+    Tests to perform on ``IBlockDeviceAPI`` providers.
     """
     def test_interface(self):
         """
@@ -424,10 +428,10 @@ class IBlockDeviceAPITestsMixin(object):
 
 def make_iblockdeviceapi_tests(blockdevice_api_factory):
     """
+    :returns: A ``TestCase`` for with tests that will be performed on the
+       supplied ``IBlockDeviceAPI`` provider.
     """
     class Tests(IBlockDeviceAPITestsMixin, SynchronousTestCase):
-        """
-        """
         def setUp(self):
             self.api = blockdevice_api_factory(test_case=self)
 
@@ -436,13 +440,17 @@ def make_iblockdeviceapi_tests(blockdevice_api_factory):
 
 def loopbackblockdeviceapi_for_test(test_case):
     """
+    :returns: A ``LoopbackBlockDeviceAPI`` with a temporary root directory
+    created for the supplied ``test_case``.
     """
     root_path = test_case.mktemp()
     return LoopbackBlockDeviceAPI.from_path(root_path=root_path)
 
 
 class LoopbackBlockDeviceAPITests(
-        make_iblockdeviceapi_tests(blockdevice_api_factory=loopbackblockdeviceapi_for_test)
+        make_iblockdeviceapi_tests(
+            blockdevice_api_factory=loopbackblockdeviceapi_for_test
+        )
 ):
     """
     Interface adherence Tests for ``LoopbackBlockDeviceAPI``.
@@ -455,6 +463,8 @@ class LoopbackBlockDeviceAPIImplementationTests(SynchronousTestCase):
     """
     def assertDirectoryStructure(self, directory):
         """
+        Assert that the supplied ``directory`` has all the sub-directories
+        required by ``LoopbackBlockDeviceAPI``.
         """
         attached_directory = directory.child(
             LoopbackBlockDeviceAPI._attached_directory_name
@@ -502,6 +512,7 @@ class LoopbackBlockDeviceAPIImplementationTests(SynchronousTestCase):
 
     def test_multiple_volumes_attached_to_host(self):
         """
+        ``attach_volume`` can attach multiple block devices to a single host.
         """
         expected_host = b'192.0.2.123'
         api = loopbackblockdeviceapi_for_test(test_case=self)
