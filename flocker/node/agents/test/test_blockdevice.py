@@ -9,16 +9,23 @@ from uuid import uuid4
 from operator import attrgetter
 from subprocess import check_output
 
+
 from zope.interface.verify import verifyObject
 
 from ..blockdevice import (
-    LoopbackBlockDeviceAPI, IBlockDeviceAPI,
+    BlockDeviceDeployer, LoopbackBlockDeviceAPI, IBlockDeviceAPI,
     BlockDeviceVolume, UnknownVolume, AlreadyAttachedVolume,
-    losetup_list_parse, losetup_list, UnattachedVolume
+    CreateBlockDeviceDataset, UnattachedVolume
 )
 
 from twisted.python.filepath import FilePath
 from twisted.trial.unittest import SynchronousTestCase, SkipTest
+
+from ... import InParallel, IDeployer, IStateChange
+from ....control import Dataset, Manifestation, Node, NodeState, Deployment
+
+from twisted.python.filepath import FilePath
+from twisted.trial.unittest import SynchronousTestCase
 
 
 def sorted_by_blockdevice_id(blockdevices):
@@ -28,6 +35,247 @@ def sorted_by_blockdevice_id(blockdevices):
         ``blockdevice_id``.
     """
     return sorted(blockdevices, key=attrgetter('blockdevice_id'))
+
+
+class BlockDeviceDeployerTests(SynchronousTestCase):
+    """
+    Tests for ``BlockDeviceDeployer``.
+    """
+    def test_interface(self):
+        """
+        ``BlockDeviceDeployer`` instances provide ``IDeployer``.
+        """
+        api = LoopbackBlockDeviceAPI.from_path(self.mktemp())
+        self.assertTrue(
+            verifyObject(
+                IDeployer,
+                BlockDeviceDeployer(
+                    hostname=b'192.0.2.123',
+                    block_device_api=api
+                )
+            )
+        )
+
+
+class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
+    """
+    Tests for ``BlockDeviceDeployer.discover_local_state``.
+    """
+    def setUp(self):
+        self.expected_hostname = b'192.0.2.123'
+        self.api = LoopbackBlockDeviceAPI.from_path(self.mktemp())
+        self.deployer = BlockDeviceDeployer(
+            hostname=self.expected_hostname,
+            block_device_api=self.api
+        )
+
+    def assertDiscoveredState(self, deployer, expected_manifestations):
+        """
+        Assert that the manifestations on the state object returned by
+        ``deployer.discover_local_state`` equals the given list of
+        manifestations.
+
+        :param IDeployer deployer: The object to use to discover the state.
+        :param list expected_manifestations: The ``Manifestation``\ s expected
+            to be discovered.
+
+        :raise: A test failure exception if the manifestations are not what is
+            expected.
+        """
+        discovering = deployer.discover_local_state()
+        state = self.successResultOf(discovering)
+        expected_paths = {}
+        for manifestation in expected_manifestations:
+            dataset_id = manifestation.dataset.dataset_id
+            mountpath = deployer._mountpath_for_manifestation(manifestation)
+            expected_paths[dataset_id] = mountpath
+        self.assertEqual(
+            NodeState(
+                hostname=deployer.hostname,
+                running=(),
+                not_running=(),
+                manifestations=expected_manifestations,
+                paths=expected_paths,
+            ),
+            state
+        )
+
+    def test_no_devices(self):
+        """
+        ``BlockDeviceDeployer.discover_local_state`` returns a ``NodeState``
+        with empty ``manifestations`` if the ``api`` reports no locally
+        attached volumes.
+        """
+        self.assertDiscoveredState(self.deployer, [])
+
+    def test_one_device(self):
+        """
+        ``BlockDeviceDeployer.discover_local_state`` returns a ``NodeState``
+        with one ``manifestations`` if the ``api`` reports one locally
+        attached volumes.
+        """
+        new_volume = self.api.create_volume(size=1234)
+        attached_volume = self.api.attach_volume(
+            new_volume.blockdevice_id, self.expected_hostname
+        )
+        expected_dataset = Dataset(dataset_id=attached_volume.blockdevice_id)
+        expected_manifestation = Manifestation(
+            dataset=expected_dataset, primary=True
+        )
+        self.assertDiscoveredState(self.deployer, [expected_manifestation])
+
+    def test_only_remote_device(self):
+        """
+        ``BlockDeviceDeployer.discover_local_state`` does not consider remotely
+        attached volumes.
+        """
+        new_volume = self.api.create_volume(size=1234)
+        self.api.attach_volume(new_volume.blockdevice_id, b'some.other.host')
+        self.assertDiscoveredState(self.deployer, [])
+
+    def test_only_unattached_devices(self):
+        """
+        ``BlockDeviceDeployer.discover_local_state`` does not consider
+        unattached volumes.
+        """
+        self.api.create_volume(size=1234)
+        self.assertDiscoveredState(self.deployer, [])
+
+
+class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
+        SynchronousTestCase
+):
+    """
+    Tests for ``BlockDeviceDeployer.calculate_necessary_state_changes``.
+    """
+    def test_no_devices_no_local_datasets(self):
+        """
+        If no devices exist and no datasets are part of the configuration for
+        the deployer's node, no state changes are calculated.
+        """
+        dataset_id = unicode(uuid4())
+        manifestation = Manifestation(
+            dataset=Dataset(dataset_id=dataset_id), primary=True
+        )
+        node = b"192.0.2.1"
+        other_node = b"192.0.2.2"
+        configuration = Deployment(
+            nodes=frozenset({
+                Node(
+                    hostname=other_node,
+                    manifestations={dataset_id: manifestation},
+                )
+            })
+        )
+        state = Deployment(nodes=frozenset())
+        api = LoopbackBlockDeviceAPI.from_path(self.mktemp())
+        deployer = BlockDeviceDeployer(
+            hostname=node,
+            block_device_api=api,
+        )
+        changes = deployer.calculate_necessary_state_changes(
+            local_state=NodeState(hostname=node),
+            desired_configuration=configuration,
+            current_cluster_state=state,
+        )
+        self.assertEqual(InParallel(changes=[]), changes)
+
+    def test_no_devices_one_dataset(self):
+        """
+        If no devices exist but a dataset is part of the configuration for the
+        deployer's node, a ``CreateBlockDeviceDataset`` change is calculated.
+        """
+        dataset_id = unicode(uuid4())
+        dataset = Dataset(dataset_id=dataset_id)
+        manifestation = Manifestation(
+            dataset=dataset, primary=True
+        )
+        node = b"192.0.2.1"
+        configuration = Deployment(
+            nodes=frozenset({
+                Node(
+                    hostname=node,
+                    manifestations={dataset_id: manifestation},
+                )
+            })
+        )
+        state = Deployment(nodes=frozenset())
+        api = LoopbackBlockDeviceAPI.from_path(self.mktemp())
+        deployer = BlockDeviceDeployer(
+            hostname=node,
+            block_device_api=api,
+        )
+        changes = deployer.calculate_necessary_state_changes(
+            local_state=NodeState(hostname=node),
+            desired_configuration=configuration,
+            current_cluster_state=state,
+        )
+        mountpoint = deployer._mountroot.child(dataset_id.encode("ascii"))
+        self.assertEqual(
+            InParallel(
+                changes=[
+                    CreateBlockDeviceDataset(
+                        dataset=dataset, mountpoint=mountpoint
+                    )
+                ]),
+            changes
+        )
+
+    def test_local_state_overrides_cluster_state(self):
+        """
+        ``BlockDeviceDeployer.calculate_necessary_state_changes`` uses the
+        given local state to override cluster state, since the latter may be
+        stale.
+
+        XXX: This may not be necessary since we don't currently use
+        cluster_state in our state change calculation.
+        """
+        local_hostname = b"192.0.2.1"
+        dataset_id = unicode(uuid4())
+        dataset = Dataset(dataset_id=dataset_id)
+        manifestation = Manifestation(
+            dataset=dataset, primary=True
+        )
+
+        # Discovered local state reveals the configured manifestation is
+        # already on this node.
+        local_state = NodeState(
+            hostname=local_hostname,
+            manifestations=[manifestation],
+            paths={dataset_id: FilePath('/foo/bar')}
+        )
+
+        # Configuration requires a manifestation on this node.
+        desired_configuration = Deployment(
+            nodes=frozenset({
+                Node(
+                    hostname=local_hostname,
+                    manifestations={dataset_id: manifestation},
+                )
+            })
+        )
+
+        # Control service still reports that this node has no manifestations.
+        current_cluster_state = Deployment(
+            nodes=frozenset([Node(hostname=local_hostname)])
+        )
+
+        # API shouldn't be called upon
+        api = object()
+        deployer = BlockDeviceDeployer(
+            hostname=local_hostname,
+            block_device_api=api,
+        )
+
+        actual_changes = deployer.calculate_necessary_state_changes(
+            local_state, desired_configuration, current_cluster_state
+        )
+        # If Deployer is buggy and not overriding cluster state
+        # with local state this would result in a dataset creation action:
+        expected_changes = InParallel(changes=[])
+
+        self.assertEqual(expected_changes, actual_changes)
+>>>>>>> origin/loopback-create-FLOC-1502^
 
 
 class IBlockDeviceAPITestsMixin(object):
@@ -457,3 +705,67 @@ class LosetupListTests(SynchronousTestCase):
             [(FilePath('/dev/loop0'), FilePath('/tmp/rjw'))],
             losetup_list_parse(input_text)
         )
+
+
+class CreateBlockDeviceDatasetTests(SynchronousTestCase):
+    """
+    Tests for ``CreateBlockDeviceDataset``.
+    """
+    def test_interface(self):
+        """
+        ``CreateBlockDeviceDataset`` provides ``IStateChange``.
+        """
+        self.assertTrue(
+            verifyObject(
+                IStateChange,
+                CreateBlockDeviceDataset(
+                    dataset=Dataset(dataset_id=unicode(uuid4())),
+                    mountpoint=FilePath('.')
+                )
+            )
+        )
+
+    def test_run(self):
+        """
+        ``CreateBlockDeviceDataset.run`` uses the ``IDeployer``\ 's API object
+        to create a new volume, attach it to the deployer's node, initialize
+        the resulting block device with a filesystem, and mount the filesystem.
+        """
+        host = b"192.0.2.1"
+        api = LoopbackBlockDeviceAPI.from_path(self.mktemp())
+        deployer = BlockDeviceDeployer(hostname=host, block_device_api=api)
+        deployer._mountroot = FilePath(self.mktemp())
+        deployer._mountroot.makedirs()
+        dataset_id = unicode(uuid4())
+        mountpoint = deployer._mountroot.child(dataset_id.encode("ascii"))
+        dataset = Dataset(dataset_id=dataset_id, maximum_size=1024 * 1024 * 10)
+        change = CreateBlockDeviceDataset(
+            dataset=dataset, mountpoint=mountpoint
+        )
+        change.run(deployer)
+
+        [volume] = api.list_volumes()
+        self.assertEqual(
+            (dataset.maximum_size, host),
+            (volume.size, volume.host)
+        )
+
+        mounts = list(get_mounts())
+
+        self.assertIn(
+            (api.get_device_path(volume.blockdevice_id).path,
+             mountpoint.path,
+             b"ext4"),
+            mounts
+        )
+
+
+def get_mounts():
+    """
+    :returns: A generator 3-tuple(device_path, mountpoint, filesystem_type) for
+        each currently mounted filesystem reported in ``/proc/self/mounts``.
+    """
+    with open("/proc/self/mounts") as mounts:
+        for mount in mounts:
+            device_path, mountpoint, filesystem_type = mount.split()[:3]
+            yield device_path, mountpoint, filesystem_type

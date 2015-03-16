@@ -10,12 +10,18 @@ devices.
 from uuid import uuid4
 from subprocess import check_output
 
+from eliot import ActionType, Field, Logger
+
 from zope.interface import implementer, Interface
 
 from characteristic import attributes
 from pyrsistent import PRecord, field
 
+from twisted.internet.defer import succeed
 from twisted.python.filepath import FilePath
+
+from .. import IDeployer, IStateChange, InParallel
+from ...control import Node, NodeState, Manifestation, Dataset
 
 
 class VolumeException(Exception):
@@ -52,6 +58,80 @@ class UnattachedVolume(VolumeException):
     An attempt was made to operate on an unattached volume but the operation
     requires the volume to be attached.
     """
+
+
+DATASET = Field(
+    u"dataset",
+    lambda dataset: dataset.dataset_id,
+    u"The unique identifier of a dataset."
+)
+
+MOUNTPOINT = Field(
+    u"mountpoint",
+    lambda path: path.path,
+    u"The absolute path to the location on the node where the dataset will be "
+    u"mounted.",
+)
+
+DEVICE = Field(
+    u"block_device",
+    lambda path: path.path,
+    u"The absolute path to the block device file on the node where the "
+    u"dataset is attached.",
+)
+
+CREATE_BLOCK_DEVICE_DATASET = ActionType(
+    u"agent:blockdevice:create",
+    [DATASET, MOUNTPOINT],
+    [DEVICE],
+    u"A block-device-backed dataset is being created.",
+)
+
+
+@implementer(IStateChange)
+class CreateBlockDeviceDataset(PRecord):
+    """
+    An operation to create a new dataset on a newly created volume with a newly
+    initialized filesystem.
+
+    :ivar Dataset dataset: The dataset for which to create a block device.
+    :ivar FilePath mountpoint: The path at which to mount the created device.
+    :ivar Logger logger: An Eliot ``Logger``.
+    """
+    dataset = field()
+    mountpoint = field(mandatory=True)
+
+    logger = Logger()
+
+    def run(self, deployer):
+        """
+        Create a block device, attach it to the host of the supplied
+        ``deployer``, create an ``ext4`` filesystem on the device and mount it.
+
+        Operations are performed synchronously.
+
+        See ``IStateChange.run`` for general argument and return type
+        documentation.
+
+        :returns: An already fired ``Deferred`` with result ``None``.
+        """
+        with CREATE_BLOCK_DEVICE_DATASET(
+                self.logger,
+                dataset=self.dataset, mountpoint=self.mountpoint
+        ) as action:
+            api = deployer.block_device_api
+            volume = api.create_volume(
+                self.dataset.maximum_size
+            )
+            volume = api.attach_volume(
+                volume.blockdevice_id, deployer.hostname.encode('ascii')
+            )
+            device = api.get_device_path(volume.blockdevice_id)
+            self.mountpoint.makedirs()
+            check_output(["mkfs", "-t", "ext4", device.path])
+            check_output(["mount", device.path, self.mountpoint.path])
+            action.add_success_fields(block_device=device)
+        return succeed(None)
 
 
 # TODO: Introduce a non-blocking version of this interface and an automatic
@@ -181,7 +261,6 @@ def device_for_path(expected_backing_file):
     for device_file, backing_file in losetup_list():
         if expected_backing_file == backing_file:
             return device_file
-    return None
 
 
 @implementer(IBlockDeviceAPI)
@@ -264,9 +343,12 @@ class LoopbackBlockDeviceAPI(object):
                 host_directory.makedirs()
             except OSError:
                 pass
+
             new_path = host_directory.child(blockdevice_id)
             old_path.moveTo(new_path)
+
             check_output(["losetup", "--find", new_path.path])
+
             attached_volume = volume.set(host=host)
             return attached_volume
 
@@ -311,3 +393,89 @@ class LoopbackBlockDeviceAPI(object):
         )
         # May be None if the file hasn't been used for a loop device.
         return device_for_path(volume_path)
+
+
+def _manifestation_from_volume(volume):
+    """
+    :param BlockDeviceVolume volume: The block device which has the
+        manifestation of a dataset.
+    :returns: A primary ``Manifestation`` of a ``Dataset`` with the same id as
+        the supplied ``BlockDeviceVolume``.
+    """
+    dataset = Dataset(dataset_id=volume.blockdevice_id)
+    return Manifestation(dataset=dataset, primary=True)
+
+
+@implementer(IDeployer)
+@attributes(["hostname", "block_device_api"])
+class BlockDeviceDeployer(object):
+    """
+    An ``IDeployer`` that operates on ``IBlockDeviceAPI`` providers.
+
+    :param bytes hostname: The IP address of the node that has this deployer.
+    :param IBlockDeviceAPI block_device_api: The block device API that will be
+        called upon to perform block device operations.
+    :ivar FilePath _mountroot: The directory where block devices will be
+        mounted.
+    """
+    _mountroot = FilePath(b"/flocker")
+
+    def discover_local_state(self):
+        volumes = self.block_device_api.list_volumes()
+
+        manifestations = [_manifestation_from_volume(v)
+                          for v in volumes
+                          if v.host == self.hostname]
+
+        paths = {}
+        for manifestation in manifestations:
+            dataset_id = manifestation.dataset.dataset_id
+            mountpath = self._mountpath_for_manifestation(manifestation)
+            paths[dataset_id] = mountpath
+
+        state = NodeState(
+            hostname=self.hostname,
+            running=(),
+            not_running=(),
+            manifestations=manifestations,
+            paths=paths
+        )
+        return succeed(state)
+
+    def _mountpath_for_manifestation(self, manifestation):
+        """
+        Calculate a ``Manifestation`` mount point.
+
+        :param Manifestation manifestation: The manifestation of a dataset that
+            will be mounted.
+        :returns: A ``FilePath`` of the mount point.
+        """
+        return self._mountroot.child(
+            manifestation.dataset.dataset_id.encode("ascii")
+        )
+
+    def calculate_necessary_state_changes(self, local_state,
+                                          desired_configuration,
+                                          current_cluster_state):
+        potential_configs = list(
+            node for node in desired_configuration.nodes
+            if node.hostname == self.hostname
+        )
+        if len(potential_configs) == 0:
+            this_node_config = Node(hostname=None)
+        else:
+            [this_node_config] = potential_configs
+        configured = set(this_node_config.manifestations.values())
+        to_create = configured.difference(local_state.manifestations)
+
+        # TODO check for non-None size on dataset; cannot create block devices
+        # of unspecified size.
+        creates = list(
+            CreateBlockDeviceDataset(
+                dataset=manifestation.dataset,
+                mountpoint=self._mountpath_for_manifestation(manifestation)
+            )
+            for manifestation
+            in to_create
+        )
+        return InParallel(changes=creates)
