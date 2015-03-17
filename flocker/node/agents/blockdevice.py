@@ -123,7 +123,7 @@ class CreateBlockDeviceDataset(PRecord):
                 self.dataset.maximum_size
             )
             volume = api.attach_volume(
-                volume.blockdevice_id, deployer.hostname.encode('ascii')
+                volume.blockdevice_id, deployer.hostname
             )
             device = api.get_device_path(volume.blockdevice_id)
             self.mountpoint.makedirs()
@@ -436,18 +436,19 @@ def _manifestation_from_volume(volume):
 
 
 @implementer(IDeployer)
-@attributes(["hostname", "block_device_api"])
-class BlockDeviceDeployer(object):
+class BlockDeviceDeployer(PRecord):
     """
     An ``IDeployer`` that operates on ``IBlockDeviceAPI`` providers.
 
-    :param bytes hostname: The IP address of the node that has this deployer.
+    :param unicode hostname: The IP address of the node that has this deployer.
     :param IBlockDeviceAPI block_device_api: The block device API that will be
         called upon to perform block device operations.
-    :ivar FilePath _mountroot: The directory where block devices will be
+    :ivar FilePath mountroot: The directory where block devices will be
         mounted.
     """
-    _mountroot = FilePath(b"/flocker")
+    hostname = field(type=unicode, mandatory=True)
+    block_device_api = field(mandatory=True)
+    mountroot = field(type=FilePath, initial=FilePath(b"/flocker"))
 
     def discover_local_state(self):
         volumes = self.block_device_api.list_volumes()
@@ -479,7 +480,7 @@ class BlockDeviceDeployer(object):
             will be mounted.
         :returns: A ``FilePath`` of the mount point.
         """
-        return self._mountroot.child(
+        return self.mountroot.child(
             manifestation.dataset.dataset_id.encode("ascii")
         )
 

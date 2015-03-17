@@ -49,7 +49,7 @@ class BlockDeviceDeployerTests(SynchronousTestCase):
             verifyObject(
                 IDeployer,
                 BlockDeviceDeployer(
-                    hostname=b'192.0.2.123',
+                    hostname=u'192.0.2.123',
                     block_device_api=api
                 )
             )
@@ -61,7 +61,7 @@ class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
     Tests for ``BlockDeviceDeployer.discover_local_state``.
     """
     def setUp(self):
-        self.expected_hostname = b'192.0.2.123'
+        self.expected_hostname = u'192.0.2.123'
         self.api = LoopbackBlockDeviceAPI.from_path(self.mktemp())
         self.deployer = BlockDeviceDeployer(
             hostname=self.expected_hostname,
@@ -129,7 +129,7 @@ class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
         attached volumes.
         """
         new_volume = self.api.create_volume(size=1234)
-        self.api.attach_volume(new_volume.blockdevice_id, b'some.other.host')
+        self.api.attach_volume(new_volume.blockdevice_id, u'some.other.host')
         self.assertDiscoveredState(self.deployer, [])
 
     def test_only_unattached_devices(self):
@@ -156,8 +156,8 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
         manifestation = Manifestation(
             dataset=Dataset(dataset_id=dataset_id), primary=True
         )
-        node = b"192.0.2.1"
-        other_node = b"192.0.2.2"
+        node = u"192.0.2.1"
+        other_node = u"192.0.2.2"
         configuration = Deployment(
             nodes=frozenset({
                 Node(
@@ -189,7 +189,7 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
         manifestation = Manifestation(
             dataset=dataset, primary=True
         )
-        node = b"192.0.2.1"
+        node = u"192.0.2.1"
         configuration = Deployment(
             nodes=frozenset({
                 Node(
@@ -209,7 +209,7 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
             desired_configuration=configuration,
             current_cluster_state=state,
         )
-        mountpoint = deployer._mountroot.child(dataset_id.encode("ascii"))
+        mountpoint = deployer.mountroot.child(dataset_id.encode("ascii"))
         self.assertEqual(
             InParallel(
                 changes=[
@@ -229,7 +229,7 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
         XXX: This may not be necessary since we don't currently use
         cluster_state in our state change calculation.
         """
-        local_hostname = b"192.0.2.1"
+        local_hostname = u"192.0.2.1"
         dataset_id = unicode(uuid4())
         dataset = Dataset(dataset_id=dataset_id)
         manifestation = Manifestation(
@@ -755,13 +755,13 @@ class CreateBlockDeviceDatasetTests(SynchronousTestCase):
         to create a new volume, attach it to the deployer's node, initialize
         the resulting block device with a filesystem, and mount the filesystem.
         """
-        host = b"192.0.2.1"
+        host = u"192.0.2.1"
         api = LoopbackBlockDeviceAPI.from_path(self.mktemp())
-        deployer = BlockDeviceDeployer(hostname=host, block_device_api=api)
-        deployer._mountroot = FilePath(self.mktemp())
-        deployer._mountroot.makedirs()
+        mountroot = FilePath(self.mktemp())
+        mountroot.makedirs()
+        deployer = BlockDeviceDeployer(hostname=host, block_device_api=api, mountroot=mountroot)
         dataset_id = unicode(uuid4())
-        mountpoint = deployer._mountroot.child(dataset_id.encode("ascii"))
+        mountpoint = mountroot.child(dataset_id.encode("ascii"))
         dataset = Dataset(dataset_id=dataset_id, maximum_size=1024 * 1024 * 10)
         change = CreateBlockDeviceDataset(
             dataset=dataset, mountpoint=mountpoint
