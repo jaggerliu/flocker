@@ -62,7 +62,7 @@ class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
     """
     def setUp(self):
         self.expected_hostname = u'192.0.2.123'
-        self.api = LoopbackBlockDeviceAPI.from_path(self.mktemp())
+        self.api = loopbackblockdeviceapi_for_test(self)
         self.deployer = BlockDeviceDeployer(
             hostname=self.expected_hostname,
             block_device_api=self.api
@@ -756,7 +756,7 @@ class CreateBlockDeviceDatasetTests(SynchronousTestCase):
         the resulting block device with a filesystem, and mount the filesystem.
         """
         host = u"192.0.2.1"
-        api = LoopbackBlockDeviceAPI.from_path(self.mktemp())
+        api = loopbackblockdeviceapi_for_test(self)
         mountroot = FilePath(self.mktemp())
         mountroot.makedirs()
         deployer = BlockDeviceDeployer(hostname=host, block_device_api=api, mountroot=mountroot)
