@@ -9,24 +9,23 @@ from uuid import uuid4
 from operator import attrgetter
 from subprocess import check_output
 
-
 from zope.interface.verify import verifyObject
-
-from ..blockdevice import (
-    BlockDeviceDeployer, LoopbackBlockDeviceAPI, IBlockDeviceAPI,
-    BlockDeviceVolume, UnknownVolume, AlreadyAttachedVolume,
-    CreateBlockDeviceDataset, UnattachedVolume
-)
 
 from twisted.python.filepath import FilePath
 from twisted.trial.unittest import SynchronousTestCase, SkipTest
 
+from ..blockdevice import (
+    BlockDeviceDeployer, LoopbackBlockDeviceAPI, IBlockDeviceAPI,
+    BlockDeviceVolume, UnknownVolume, AlreadyAttachedVolume,
+    CreateBlockDeviceDataset, UnattachedVolume,
+    _losetup_list_parse, _losetup_list,
+)
+
 from ... import InParallel, IDeployer, IStateChange
 from ....control import Dataset, Manifestation, Node, NodeState, Deployment
 
-from twisted.python.filepath import FilePath
-from twisted.trial.unittest import SynchronousTestCase
-
+GIBIBYTE = 2 ** 30
+REALISTIC_BLOCKDEVICE_SIZE = 4 * GIBIBYTE
 
 def sorted_by_blockdevice_id(blockdevices):
     """
@@ -275,7 +274,6 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
         expected_changes = InParallel(changes=[])
 
         self.assertEqual(expected_changes, actual_changes)
->>>>>>> origin/loopback-create-FLOC-1502^
 
 
 class IBlockDeviceAPITestsMixin(object):
@@ -302,7 +300,7 @@ class IBlockDeviceAPITestsMixin(object):
         ``create_volume`` returns a ``BlockVolume`` that is returned by
         ``list_volumes``.
         """
-        new_volume = self.api.create_volume(size=1024)
+        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
         self.assertIn(new_volume, self.api.list_volumes())
 
     def test_attach_unknown_volume(self):
@@ -314,7 +312,10 @@ class IBlockDeviceAPITestsMixin(object):
             UnknownVolume,
             self.api.attach_volume,
             blockdevice_id=unicode(uuid4()),
-            host=b'192.0.2.123'
+            # XXX This IP address and others in following tests need to be
+            # parameterized so that these tests can be run against real cloud
+            # nodes.
+            host=u'192.0.2.123'
         )
 
     def test_attach_attached_volume(self):
@@ -322,8 +323,8 @@ class IBlockDeviceAPITestsMixin(object):
         An attempt to attach an already attached ``BlockDeviceVolume`` raises
         ``AlreadyAttachedVolume``.
         """
-        host = b'192.0.2.123'
-        new_volume = self.api.create_volume(size=1024)
+        host = u'192.0.2.123'
+        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
         attached_volume = self.api.attach_volume(
             new_volume.blockdevice_id, host=host
         )
@@ -340,24 +341,24 @@ class IBlockDeviceAPITestsMixin(object):
         An attempt to attach a ``BlockDeviceVolume`` already attached to
         another host raises ``AlreadyAttachedVolume``.
         """
-        new_volume = self.api.create_volume(size=1024)
+        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
         attached_volume = self.api.attach_volume(
-            new_volume.blockdevice_id, host=b'192.0.2.123'
+            new_volume.blockdevice_id, host=u'192.0.2.123'
         )
 
         self.assertRaises(
             AlreadyAttachedVolume,
             self.api.attach_volume,
             blockdevice_id=attached_volume.blockdevice_id,
-            host=b'192.0.2.124'
+            host=u'192.0.2.124'
         )
 
     def test_attach_unattached_volume(self):
         """
         An unattached ``BlockDeviceVolume`` can be attached.
         """
-        expected_host = b'192.0.2.123'
-        new_volume = self.api.create_volume(size=1024)
+        expected_host = u'192.0.2.123'
+        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
         expected_volume = BlockDeviceVolume(
             blockdevice_id=new_volume.blockdevice_id,
             size=new_volume.size,
@@ -373,8 +374,8 @@ class IBlockDeviceAPITestsMixin(object):
         """
         An attached ``BlockDeviceVolume`` is listed.
         """
-        expected_host = b'192.0.2.123'
-        new_volume = self.api.create_volume(size=1024)
+        expected_host = u'192.0.2.123'
+        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
         expected_volume = BlockDeviceVolume(
             blockdevice_id=new_volume.blockdevice_id,
             size=new_volume.size,
@@ -391,25 +392,25 @@ class IBlockDeviceAPITestsMixin(object):
         ``list_volumes`` returns both attached and unattached
         ``BlockDeviceVolume``s.
         """
-        expected_host = b'192.0.2.123'
-        new_volume1 = self.api.create_volume(size=1024)
-        new_volume2 = self.api.create_volume(size=1024)
+        expected_host = u'192.0.2.123'
+        new_volume1 = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+        new_volume2 = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
         attached_volume = self.api.attach_volume(
             blockdevice_id=new_volume2.blockdevice_id,
             host=expected_host
         )
-        self.assertEqual(
-            sorted_by_blockdevice_id([new_volume1, attached_volume]),
-            sorted_by_blockdevice_id(self.api.list_volumes())
+        self.assertItemsEqual(
+            [new_volume1, attached_volume],
+            self.api.list_volumes()
         )
 
     def test_multiple_volumes_attached_to_host(self):
         """
         ``attach_volume`` can attach multiple block devices to a single host.
         """
-        expected_host = b'192.0.2.123'
-        volume1 = self.api.create_volume(size=1024)
-        volume2 = self.api.create_volume(size=1024)
+        expected_host = u'192.0.2.123'
+        volume1 = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+        volume2 = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
         attached_volume1 = self.api.attach_volume(
             volume1.blockdevice_id, host=expected_host
         )
@@ -417,9 +418,9 @@ class IBlockDeviceAPITestsMixin(object):
             volume2.blockdevice_id, host=expected_host
         )
 
-        self.assertEqual(
-            sorted_by_blockdevice_id([attached_volume1, attached_volume2]),
-            sorted_by_blockdevice_id(self.api.list_volumes())
+        self.assertItemsEqual(
+            [attached_volume1, attached_volume2],
+            self.api.list_volumes()
         )
 
     def test_get_device_path_unknown_volume(self):
@@ -440,7 +441,7 @@ class IBlockDeviceAPITestsMixin(object):
         ``get_device_path`` raises ``UnattachedVolume`` if the supplied
         ``blockdevice_id`` corresponds to an unattached volume.
         """
-        new_volume = self.api.create_volume(size=1000)
+        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
         exception = self.assertRaises(
             UnattachedVolume,
             self.api.get_device_path,
@@ -453,10 +454,10 @@ class IBlockDeviceAPITestsMixin(object):
         ``get_device_path`` returns a ``FilePath`` to the device representing
         the attached volume.
         """
-        new_volume = self.api.create_volume(size=1024 * 50)
+        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
         attached_volume = self.api.attach_volume(
             new_volume.blockdevice_id,
-            b'192.0.2.123'
+            u'192.0.2.123'
         )
         device_path = self.api.get_device_path(attached_volume.blockdevice_id)
         self.assertTrue(
@@ -464,15 +465,15 @@ class IBlockDeviceAPITestsMixin(object):
             u"Not a block device. Path: {!r}".format(device_path)
         )
 
-    def test_get_device_path_device_exists(self):
+    def test_get_device_path_device_repeatable_results(self):
         """
         ``get_device_path`` returns the same ``FilePath`` for the volume device
         when called multiple times.
         """
-        new_volume = self.api.create_volume(size=1024 * 50)
+        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
         attached_volume = self.api.attach_volume(
             new_volume.blockdevice_id,
-            b'192.0.2.123'
+            u'192.0.2.123'
         )
 
         device_path1 = self.api.get_device_path(attached_volume.blockdevice_id)
@@ -508,7 +509,7 @@ def losetup_detach_all(root_path):
         backing files.
     :param list backing_files: A ``list`` of all loopback backing files.
     """
-    for device_file, backing_file in losetup_list():
+    for device_file, backing_file in _losetup_list():
         try:
             backing_file.segmentsFrom(root_path)
         except ValueError:
@@ -598,21 +599,43 @@ class LoopbackBlockDeviceAPIImplementationTests(SynchronousTestCase):
         unattached_directory.makedirs()
         self.assertDirectoryStructure(directory)
 
+    def test_create_sparse(self):
+        """
+        ``create_volume`` creates sparse files.
+        """
+        api = loopbackblockdeviceapi_for_test(test_case=self)
+        # 1GB
+        apparent_size = REALISTIC_BLOCKDEVICE_SIZE
+        volume = api.create_volume(size=apparent_size)
+        backing_file = api._root_path.descendant(
+            ['unattached', volume.blockdevice_id]
+        )
+        # Get actual number of 512 byte blocks used by the file.
+        # See http://stackoverflow.com/a/3212102
+        actual_size = os.stat(backing_file.path).st_blocks * 512
+        reported_size = backing_file.getsize()
+
+        self.assertEqual(
+            (0, apparent_size),
+            (actual_size, reported_size)
+        )
+
     def test_list_unattached_volumes(self):
         """
         ``list_volumes`` returns a ``BlockVolume`` for each unattached volume
         file.
         """
-        expected_size = 1234
+        expected_size = REALISTIC_BLOCKDEVICE_SIZE
         api = loopbackblockdeviceapi_for_test(test_case=self)
         blockdevice_volume = BlockDeviceVolume(
             blockdevice_id=unicode(uuid4()),
             size=expected_size,
         )
-        (api
-         .root_path.child('unattached')
-         .child(blockdevice_volume.blockdevice_id)
-         .setContent(b'x' * expected_size))
+        with (api._root_path
+              .child('unattached')
+              .child(blockdevice_volume.blockdevice_id)
+              .open('wb')) as f:
+            f.truncate(expected_size)
         self.assertEqual([blockdevice_volume], api.list_volumes())
 
     def test_list_attached_volumes(self):
@@ -620,17 +643,18 @@ class LoopbackBlockDeviceAPIImplementationTests(SynchronousTestCase):
         ``list_volumes`` returns a ``BlockVolume`` for each attached volume
         file.
         """
-        expected_size = 1234
-        expected_host = b'192.0.2.123'
+        expected_size = REALISTIC_BLOCKDEVICE_SIZE
+        expected_host = u'192.0.2.123'
         api = loopbackblockdeviceapi_for_test(test_case=self)
 
         blockdevice_id = unicode(uuid4())
 
-        host_dir = api.root_path.child('attached').child(expected_host)
+        host_dir = api._root_path.descendant([
+            b'attached', expected_host.encode("utf-8")
+        ])
         host_dir.makedirs()
-        (host_dir
-         .child(blockdevice_id)
-         .setContent(b'x' * expected_size))
+        with host_dir.child(blockdevice_id).open('wb') as f:
+            f.truncate(expected_size)
 
         blockdevice_volume = BlockDeviceVolume(
             blockdevice_id=blockdevice_id,
@@ -643,13 +667,13 @@ class LoopbackBlockDeviceAPIImplementationTests(SynchronousTestCase):
 
 class LosetupListTests(SynchronousTestCase):
     """
-    Tests for ``losetup_list_parse``.
+    Tests for ``_losetup_list_parse``.
     """
     def test_parse_empty(self):
         """
         An empty list is returned if there are no devices listed.
         """
-        self.assertEqual([], losetup_list_parse('\n'))
+        self.assertEqual([], _losetup_list_parse('\n'))
 
     def test_parse_one_line(self):
         """
@@ -661,7 +685,7 @@ class LosetupListTests(SynchronousTestCase):
         ])
         self.assertEqual(
             [(FilePath('/dev/loop0'), FilePath('/tmp/rjw'))],
-            losetup_list_parse(input_text)
+            _losetup_list_parse(input_text)
         )
 
     def test_parse_multiple_lines(self):
@@ -678,7 +702,7 @@ class LosetupListTests(SynchronousTestCase):
             [(FilePath('/dev/loop0'), FilePath('/tmp/rjw')),
              (FilePath('/dev/loop1'),
               FilePath('/usr/share/virtualbox/VBoxGuestAdditions.iso'))],
-            losetup_list_parse(input_text)
+            _losetup_list_parse(input_text)
         )
 
     def test_remove_deleted_suffix(self):
@@ -691,7 +715,7 @@ class LosetupListTests(SynchronousTestCase):
         ])
         self.assertEqual(
             [(FilePath('/dev/loop0'), FilePath('/tmp/rjw'))],
-            losetup_list_parse(input_text)
+            _losetup_list_parse(input_text)
         )
 
     def test_remove_inode(self):
@@ -703,7 +727,7 @@ class LosetupListTests(SynchronousTestCase):
         ])
         self.assertEqual(
             [(FilePath('/dev/loop0'), FilePath('/tmp/rjw'))],
-            losetup_list_parse(input_text)
+            _losetup_list_parse(input_text)
         )
 
 
