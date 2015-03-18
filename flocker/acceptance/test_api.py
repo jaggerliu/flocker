@@ -354,7 +354,9 @@ class ContainerAPITests(TestCase):
             u"image": "clusterhq/flask:latest",
             u"ports": [{u"internal": 80, u"external": 8080}]
         }
-        waiting_for_cluster = wait_for_cluster(test_case=self, node_count=1)
+        waiting_for_cluster = wait_for_cluster(
+            test_case=self, node_count=1, agent_command='flocker-zfs-agent'
+        )
 
         def create_container(cluster, data):
             data[u"host"] = cluster.nodes[0].address
@@ -389,7 +391,9 @@ class ContainerAPITests(TestCase):
             u"ports": [{u"internal": 8080, u"external": 8080}],
             u"environment": {u"ACCEPTANCE_ENV_LABEL": 'acceptance test ok'}
         }
-        waiting_for_cluster = wait_for_cluster(test_case=self, node_count=1)
+        waiting_for_cluster = wait_for_cluster(
+            test_case=self, node_count=1, agent_command='flocker-zfs-agent'
+        )
 
         def create_container(cluster, data):
             data[u"host"] = cluster.nodes[0].address
@@ -522,7 +526,8 @@ class LegacyZFSDatasetAPITests(make_dataset_api_tests(b'flocker-zfs-agent')):
         """
         # Create a 2 node cluster
         waiting_for_cluster = wait_for_cluster(
-            test_case=self, node_count=2, agent_command=self.agent_command)
+            test_case=self, node_count=2, agent_command=self.agent_command
+        )
 
         # Configure a dataset on node1
         def configure_dataset(cluster):
