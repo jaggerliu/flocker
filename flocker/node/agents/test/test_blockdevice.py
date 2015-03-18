@@ -113,7 +113,7 @@ class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
         with one ``manifestations`` if the ``api`` reports one locally
         attached volumes.
         """
-        new_volume = self.api.create_volume(size=1234)
+        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
         attached_volume = self.api.attach_volume(
             new_volume.blockdevice_id, self.expected_hostname
         )
@@ -128,7 +128,7 @@ class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
         ``BlockDeviceDeployer.discover_local_state`` does not consider remotely
         attached volumes.
         """
-        new_volume = self.api.create_volume(size=1234)
+        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
         self.api.attach_volume(new_volume.blockdevice_id, u'some.other.host')
         self.assertDiscoveredState(self.deployer, [])
 
@@ -137,7 +137,7 @@ class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
         ``BlockDeviceDeployer.discover_local_state`` does not consider
         unattached volumes.
         """
-        self.api.create_volume(size=1234)
+        self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
         self.assertDiscoveredState(self.deployer, [])
 
 
@@ -759,16 +759,22 @@ class CreateBlockDeviceDatasetTests(SynchronousTestCase):
         api = loopbackblockdeviceapi_for_test(self)
         mountroot = FilePath(self.mktemp())
         mountroot.makedirs()
-        deployer = BlockDeviceDeployer(hostname=host, block_device_api=api, mountroot=mountroot)
+        deployer = BlockDeviceDeployer(
+            hostname=host, block_device_api=api, mountroot=mountroot
+        )
         dataset_id = unicode(uuid4())
         mountpoint = mountroot.child(dataset_id.encode("ascii"))
-        dataset = Dataset(dataset_id=dataset_id, maximum_size=1024 * 1024 * 10)
+        dataset = Dataset(
+            dataset_id=dataset_id,
+            maximum_size=REALISTIC_BLOCKDEVICE_SIZE
+        )
         change = CreateBlockDeviceDataset(
             dataset=dataset, mountpoint=mountpoint
         )
         change.run(deployer)
 
         [volume] = api.list_volumes()
+
         self.assertEqual(
             (dataset.maximum_size, host),
             (volume.size, volume.host)
