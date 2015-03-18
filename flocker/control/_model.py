@@ -416,7 +416,6 @@ class NodeState(PRecord):
         node. Maps ``dataset_id`` to a ``FilePath``.
     """
     hostname = field(type=unicode, factory=unicode, mandatory=True)
-
     used_ports = pset_field(int)
 
     # XXX: Consider an issue for a new `DatasetState` so that dataset
@@ -425,7 +424,6 @@ class NodeState(PRecord):
     # See https://github.com/ClusterHQ/flocker/pull/1206#issue-60483012
     running = pset_field(Application)
     not_running = pset_field(Application)
-
     manifestations = pset_field(Manifestation)
     paths = field(type=_PathMap, initial=_PathMap(), factory=_PathMap.create,
                   mandatory=True)

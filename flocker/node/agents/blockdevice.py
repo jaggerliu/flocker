@@ -370,14 +370,11 @@ class LoopbackBlockDeviceAPI(object):
                 host_directory.makedirs()
             except OSError:
                 pass
-
             new_path = host_directory.child(blockdevice_id)
             old_path.moveTo(new_path)
-
             # The --find option allocates the next available /dev/loopX device
             # name to the device.
             check_output(["losetup", "--find", new_path.path])
-
             attached_volume = volume.set(host=host)
             return attached_volume
 
