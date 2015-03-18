@@ -499,7 +499,6 @@ def losetup_detach_all(root_path):
 
     :param FilePath root_path: A directory in which to search for loop device
         backing files.
-    :param list backing_files: A ``list`` of all loopback backing files.
     """
     for device_file, backing_file in _losetup_list():
         try:
@@ -723,6 +722,44 @@ class LosetupListTests(SynchronousTestCase):
         )
 
 
+def umount(device_file):
+    """
+    Unmount a filesystem.
+
+    :param FilePath device_file: The device file that is mounted.
+    """
+    check_output(['umount', device_file.path])
+
+
+def umount_all(root_path):
+    """
+    Unmount all devices with mount points contained in ``root_path``.
+
+    :param FilePath root_path: A directory in which to search for mount points.
+    """
+    for device_file, mountpoint_directory, filesystem_type in get_mounts():
+        try:
+            mountpoint_directory.segmentsFrom(root_path)
+        except ValueError:
+            pass
+        else:
+            umount(device_file)
+
+
+def mountroot_for_test(test_case):
+    """
+    Create a mountpoint root directory and unmount any filesystems with mount
+    points beneath that directory when the test exits.
+
+    :param TestCase test_case: The ``TestCase`` which is being run.
+    :returns: A ``FilePath`` for the newly created mount root.
+    """
+    mountroot = FilePath(test_case.mktemp())
+    mountroot.makedirs()
+    test_case.addCleanup(umount_all, mountroot)
+    return mountroot
+
+
 class CreateBlockDeviceDatasetTests(SynchronousTestCase):
     """
     Tests for ``CreateBlockDeviceDataset``.
@@ -748,9 +785,8 @@ class CreateBlockDeviceDatasetTests(SynchronousTestCase):
         the resulting block device with a filesystem, and mount the filesystem.
         """
         host = u"192.0.2.1"
+        mountroot = mountroot_for_test(self)
         api = loopbackblockdeviceapi_for_test(self)
-        mountroot = FilePath(self.mktemp())
-        mountroot.makedirs()
         deployer = BlockDeviceDeployer(
             hostname=host, block_device_api=api, mountroot=mountroot
         )
@@ -775,8 +811,8 @@ class CreateBlockDeviceDatasetTests(SynchronousTestCase):
         mounts = list(get_mounts())
 
         self.assertIn(
-            (api.get_device_path(volume.blockdevice_id).path,
-             mountpoint.path,
+            (api.get_device_path(volume.blockdevice_id),
+             mountpoint,
              b"ext4"),
             mounts
         )
@@ -790,4 +826,4 @@ def get_mounts():
     with open("/proc/self/mounts") as mounts:
         for mount in mounts:
             device_path, mountpoint, filesystem_type = mount.split()[:3]
-            yield device_path, mountpoint, filesystem_type
+            yield FilePath(device_path), FilePath(mountpoint), filesystem_type
