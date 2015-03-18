@@ -127,6 +127,7 @@ class CreateBlockDeviceDataset(PRecord):
             )
             device = api.get_device_path(volume.blockdevice_id)
             self.mountpoint.makedirs()
+            import pdb; pdb.set_trace()
             check_output(["mkfs", "-t", "ext4", device.path])
             check_output(["mount", device.path, self.mountpoint.path])
             action.add_success_fields(block_device=device)

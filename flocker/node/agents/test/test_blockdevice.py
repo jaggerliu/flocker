@@ -27,14 +27,6 @@ from ....control import Dataset, Manifestation, Node, NodeState, Deployment
 GIBIBYTE = 2 ** 30
 REALISTIC_BLOCKDEVICE_SIZE = 4 * GIBIBYTE
 
-def sorted_by_blockdevice_id(blockdevices):
-    """
-    :param list blockdevices: The ``BlockDeviceVolume`` instances to sort.
-    :returns: A ``list`` of ``BlockDeviceVolume``s sorted by their
-        ``blockdevice_id``.
-    """
-    return sorted(blockdevices, key=attrgetter('blockdevice_id'))
-
 
 class BlockDeviceDeployerTests(SynchronousTestCase):
     """
