@@ -350,8 +350,7 @@ class LoopbackBlockDeviceAPI(object):
         See ``IBlockDeviceAPI.create_volume`` for parameter and return type
         documentation.
         """
-        volume = BlockDeviceVolume(
-            blockdevice_id=unicode(uuid4()),
+        volume = BlockDeviceVolume.from_dataset_id(
             size=size, dataset_id=dataset_id,
         )
         with self._unattached_directory.child(
@@ -411,9 +410,11 @@ class LoopbackBlockDeviceAPI(object):
         """
         volumes = []
         for child in self._root_path.child('unattached').children():
+            blockdevice_id = child.basename().decode('ascii')
+            dataset_id = UUID(blockdevice_id[6:]) # "block-"
             volume = BlockDeviceVolume(
-                blockdevice_id=child.basename().decode('ascii'),
-                size=child.getsize(), dataset_id=uuid4(), # XXX
+                blockdevice_id=blockdevice_id,
+                size=child.getsize(), dataset_id=dataset_id,
             )
             volumes.append(volume)
 
