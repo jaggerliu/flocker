@@ -225,6 +225,24 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
             changes
         )
 
+    def _calculate_changes(self, local_hostname, local_state, desired_configuration):
+        # Control service still reports that this node has no manifestations.
+        current_cluster_state = Deployment(
+            nodes=frozenset([Node(hostname=local_hostname)])
+        )
+
+        # API shouldn't be called upon
+        api = object()
+        deployer = BlockDeviceDeployer(
+            hostname=local_hostname,
+            block_device_api=api,
+        )
+
+        return deployer.calculate_necessary_state_changes(
+            local_state, desired_configuration, current_cluster_state
+        )
+
+
     def test_local_state_overrides_cluster_state(self):
         """
         ``BlockDeviceDeployer.calculate_necessary_state_changes`` uses the
@@ -259,21 +277,22 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
             })
         )
 
-        # Control service still reports that this node has no manifestations.
-        current_cluster_state = Deployment(
-            nodes=frozenset([Node(hostname=local_hostname)])
-        )
+        actual_changes = self._calculate_changes(local_hostname, local_state, desired_configuration)
 
-        # API shouldn't be called upon
-        api = object()
-        deployer = BlockDeviceDeployer(
-            hostname=local_hostname,
-            block_device_api=api,
-        )
+        # If Deployer is buggy and not overriding cluster state
+        # with local state this would result in a dataset creation action:
+        expected_changes = InParallel(changes=[])
 
-        actual_changes = deployer.calculate_necessary_state_changes(
-            local_state, desired_configuration, current_cluster_state
-        )
+        self.assertEqual(expected_changes, actual_changes)
+
+    def test_it(self):
+        from flocker.control._persistence import wire_decode
+        local_state = wire_decode("{\"paths\": {\"ce070c80-2652-4b3d-8da5-239596597f44\": {\"path\": \"/flocker/ce070c80-2652-4b3d-8da5-239596597f44\", \"$__class__$\": \"FilePath\"}}, \"$__class__$\": \"NodeState\", \"hostname\": \"172.16.255.250\", \"used_ports\": [], \"running\": [], \"manifestations\": [{\"$__class__$\": \"Manifestation\", \"primary\": true, \"dataset\": {\"deleted\": false, \"dataset_id\": \"ce070c80-2652-4b3d-8da5-239596597f44\", \"$__class__$\": \"Dataset\", \"maximum_size\": 67108864, \"metadata\": {}}}], \"not_running\": []}")
+        desired_configuration = wire_decode("{\"nodes\": [{\"applications\": [], \"$__class__$\": \"Node\", \"hostname\": \"172.16.255.250\", \"manifestations\": {\"ce070c80-2652-4b3d-8da5-239596597f44\": {\"$__class__$\": \"Manifestation\", \"primary\": true, \"dataset\": {\"deleted\": false, \"dataset_id\": \"ce070c80-2652-4b3d-8da5-239596597f44\", \"$__class__$\": \"Dataset\", \"maximum_size\": 67108864, \"metadata\": {\"name\": \"my_volume\"}}}}}], \"$__class__$\": \"Deployment\"}")
+        cluster_state = None
+
+        actual_changes = self._calculate_changes(u"172.16.255.250", local_state, desired_configuration)
+
         # If Deployer is buggy and not overriding cluster state
         # with local state this would result in a dataset creation action:
         expected_changes = InParallel(changes=[])

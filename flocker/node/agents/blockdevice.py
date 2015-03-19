@@ -556,9 +556,10 @@ class BlockDeviceDeployer(PRecord):
                                           current_cluster_state):
 
 
+        from flocker.control._persistence import wire_encode
         Message.new(
-            local_state=local_state,
-            desired_configuration=desired_configuration,
+            local_state=wire_encode(local_state),
+            desired_configuration=wire_encode(desired_configuration),
         ).write(Logger())
 
         potential_configs = list(
