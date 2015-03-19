@@ -108,7 +108,10 @@ class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
         attached_volume = self.api.attach_volume(
             new_volume.blockdevice_id, self.expected_hostname
         )
-        expected_dataset = Dataset(dataset_id=attached_volume.blockdevice_id)
+        expected_dataset = Dataset(
+            dataset_id=attached_volume.blockdevice_id,
+            maximum_size=REALISTIC_BLOCKDEVICE_SIZE
+        )
         expected_manifestation = Manifestation(
             dataset=expected_dataset, primary=True
         )

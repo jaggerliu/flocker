@@ -428,7 +428,10 @@ def _manifestation_from_volume(volume):
     :returns: A primary ``Manifestation`` of a ``Dataset`` with the same id as
         the supplied ``BlockDeviceVolume``.
     """
-    dataset = Dataset(dataset_id=volume.blockdevice_id)
+    dataset = Dataset(
+        dataset_id=volume.blockdevice_id,
+        maximum_size=volume.size,
+    )
     return Manifestation(dataset=dataset, primary=True)
 
 
