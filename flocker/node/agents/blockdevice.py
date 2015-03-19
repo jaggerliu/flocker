@@ -10,7 +10,7 @@ devices.
 from uuid import UUID, uuid4
 from subprocess import check_output
 
-from eliot import ActionType, Field, Logger
+from eliot import Message, ActionType, Field, Logger
 
 from zope.interface import implementer, Interface
 
@@ -65,6 +65,12 @@ DATASET = Field(
     u"The unique identifier of a dataset."
 )
 
+DATASET_ID = Field(
+    u"dataset_id",
+    lambda dataset_id: unicode(dataset_id),
+    u"The unique identifier of a dataset."
+)
+
 MOUNTPOINT = Field(
     u"mountpoint",
     lambda path: path.path,
@@ -72,17 +78,36 @@ MOUNTPOINT = Field(
     u"mounted.",
 )
 
-DEVICE = Field(
-    u"block_device",
+DEVICE_PATH = Field(
+    u"block_device_path",
     lambda path: path.path,
     u"The absolute path to the block device file on the node where the "
     u"dataset is attached.",
 )
 
+BLOCK_DEVICE_ID = Field(
+    u"block_device_id",
+    lambda id: unicode(id),
+    u"The unique identifier if the underlying block device."
+)
+
+BLOCK_DEVICE_SIZE = Field(
+    u"block_device_size",
+    lambda size: size,
+    u"The size of the underlying block device."
+)
+
+BLOCK_DEVICE_HOST = Field(
+    u"block_device_host",
+    lambda host: host,
+    u"The host to which the underlying block device is attached."
+)
+
 CREATE_BLOCK_DEVICE_DATASET = ActionType(
     u"agent:blockdevice:create",
     [DATASET, MOUNTPOINT],
-    [DEVICE],
+    [DEVICE_PATH, BLOCK_DEVICE_ID, DATASET_ID, BLOCK_DEVICE_SIZE,
+     BLOCK_DEVICE_HOST],
     u"A block-device-backed dataset is being created.",
 )
 
@@ -130,7 +155,13 @@ class CreateBlockDeviceDataset(PRecord):
             self.mountpoint.makedirs()
             check_output(["mkfs", "-t", "ext4", device.path])
             check_output(["mount", device.path, self.mountpoint.path])
-            action.add_success_fields(block_device=device)
+            action.add_success_fields(
+                block_device_path=device,
+                block_device_id=volume.blockdevice_id,
+                dataset_id=volume.dataset_id,
+                block_device_size=volume.size,
+                block_device_host=volume.host,
+            )
         return succeed(None)
 
 
@@ -523,6 +554,13 @@ class BlockDeviceDeployer(PRecord):
     def calculate_necessary_state_changes(self, local_state,
                                           desired_configuration,
                                           current_cluster_state):
+
+
+        Message.new(
+            local_state=local_state,
+            desired_configuration=desired_configuration,
+        ).write(Logger())
+
         potential_configs = list(
             node for node in desired_configuration.nodes
             if node.hostname == self.hostname
