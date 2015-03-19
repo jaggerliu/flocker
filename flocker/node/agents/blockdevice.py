@@ -465,7 +465,7 @@ def _manifestation_from_volume(volume):
         the supplied ``BlockDeviceVolume``.
     """
     dataset = Dataset(
-        dataset_id=volume.blockdevice_id,
+        dataset_id=volume.dataset_id,
         maximum_size=volume.size,
     )
     return Manifestation(dataset=dataset, primary=True)
