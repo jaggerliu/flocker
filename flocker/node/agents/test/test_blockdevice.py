@@ -870,10 +870,10 @@ class CreateBlockDeviceDatasetTests(SynchronousTestCase):
         deployer = BlockDeviceDeployer(
             hostname=host, block_device_api=api, mountroot=mountroot
         )
-        dataset_id = unicode(uuid4())
-        mountpoint = mountroot.child(dataset_id.encode("ascii"))
+        dataset_id = uuid4()
+        mountpoint = mountroot.child(unicode(dataset_id).encode("ascii"))
         dataset = Dataset(
-            dataset_id=dataset_id,
+            dataset_id=unicode(dataset_id),
             maximum_size=REALISTIC_BLOCKDEVICE_SIZE
         )
         change = CreateBlockDeviceDataset(
@@ -883,10 +883,11 @@ class CreateBlockDeviceDatasetTests(SynchronousTestCase):
 
         [volume] = api.list_volumes()
 
-        self.assertEqual(
-            (dataset.maximum_size, host),
-            (volume.size, volume.host)
+        expected_volume = BlockDeviceVolume.from_dataset_id(
+            dataset_id=dataset_id, host=host, size=dataset.maximum_size,
         )
+
+        self.assertEqual(expected_volume, volume)
 
         mounts = list(get_mounts())
 

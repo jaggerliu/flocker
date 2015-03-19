@@ -120,7 +120,7 @@ class CreateBlockDeviceDataset(PRecord):
         ) as action:
             api = deployer.block_device_api
             volume = api.create_volume(
-                dataset_id=uuid4(), # XXX
+                dataset_id=UUID(self.dataset.dataset_id),
                 size=self.dataset.maximum_size,
             )
             volume = api.attach_volume(
