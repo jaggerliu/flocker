@@ -352,7 +352,7 @@ class LoopbackBlockDeviceAPI(object):
         """
         volume = BlockDeviceVolume(
             blockdevice_id=unicode(uuid4()),
-            size=size, dataset_id=uuid4(), # XXX
+            size=size, dataset_id=dataset_id,
         )
         with self._unattached_directory.child(
             volume.blockdevice_id.encode('ascii')
