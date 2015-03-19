@@ -421,11 +421,12 @@ class LoopbackBlockDeviceAPI(object):
         for host_directory in self._root_path.child('attached').children():
             host_name = host_directory.basename().decode('ascii')
             for child in host_directory.children():
-
+                blockdevice_id = child.basename().decode('ascii')
+                dataset_id = UUID(blockdevice_id[6:]) # "block-"
                 volume = BlockDeviceVolume(
-                    blockdevice_id=child.basename().decode('ascii'),
+                    blockdevice_id=blockdevice_id,
                     size=child.getsize(),
-                    host=host_name, dataset_id=uuid4(), # XXX
+                    host=host_name, dataset_id=dataset_id,
                 )
                 volumes.append(volume)
 
