@@ -7,7 +7,7 @@ convergence agent that can be re-used against many different kinds of block
 devices.
 """
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 from subprocess import check_output
 
 from eliot import ActionType, Field, Logger
@@ -120,7 +120,8 @@ class CreateBlockDeviceDataset(PRecord):
         ) as action:
             api = deployer.block_device_api
             volume = api.create_volume(
-                self.dataset.maximum_size
+                dataset_id=uuid4(), # XXX
+                size=self.dataset.maximum_size,
             )
             volume = api.attach_volume(
                 volume.blockdevice_id, deployer.hostname
@@ -144,13 +145,15 @@ class IBlockDeviceAPI(Interface):
     Note: This is an early sketch of the interface and it'll be refined as we
     real blockdevice providers are implemented.
     """
-    def create_volume(size):
+    def create_volume(dataset_id, size):
         """
         Create a new block device.
 
         XXX: Probably needs to be some checking of valid sizes for different
         backends. Perhaps the allowed sizes should be defined as constants?
 
+        :param UUID dataset_id: The Flocker dataset ID of the dataset on this
+            volume.
         :param int size: The size of the new block device in bytes.
         :returns: A ``BlockDeviceVolume``.
         """
@@ -200,11 +203,29 @@ class BlockDeviceVolume(PRecord):
     :ivar int size: The size, in bytes, of the block device.
     :ivar unicode host: The IP address of the host to which the block device is
         attached or ``None`` if it is currently unattached.
+    :ivar UUID dataset_id: The Flocker dataset ID associated with this volume.
     """
     blockdevice_id = field(type=unicode, mandatory=True)
     size = field(type=int, mandatory=True)
     host = field(type=(unicode, type(None)), initial=None)
+    dataset_id = field(type=UUID, mandatory=True)
 
+
+    @classmethod
+    def from_dataset_id(cls, dataset_id, size, host=None):
+        """
+        Create a new ``BlockDeviceVolume`` with a ``blockdevice_id`` derived from the given ``dataset_id``.
+
+        This is for convenience of implementation of the loopback backend (to
+        avoid needing a separate data store for mapping dataset ids to block
+        device ids and back again).
+
+        Parameters accepted have the same meaning as the attributes of this type.
+        """
+        return cls(
+            size=size, host=host, dataset_id=dataset_id,
+            blockdevice_id=u"block-{0}".format(dataset_id),
+        )
 
 def _losetup_list_parse(output):
     """
@@ -321,7 +342,7 @@ class LoopbackBlockDeviceAPI(object):
         except OSError:
             pass
 
-    def create_volume(self, size):
+    def create_volume(self, dataset_id, size):
         """
         Create a "sparse" file of some size and put it in the ``unattached``
         directory.
@@ -331,7 +352,7 @@ class LoopbackBlockDeviceAPI(object):
         """
         volume = BlockDeviceVolume(
             blockdevice_id=unicode(uuid4()),
-            size=size,
+            size=size, dataset_id=uuid4(), # XXX
         )
         with self._unattached_directory.child(
             volume.blockdevice_id.encode('ascii')
@@ -392,7 +413,7 @@ class LoopbackBlockDeviceAPI(object):
         for child in self._root_path.child('unattached').children():
             volume = BlockDeviceVolume(
                 blockdevice_id=child.basename().decode('ascii'),
-                size=child.getsize(),
+                size=child.getsize(), dataset_id=uuid4(), # XXX
             )
             volumes.append(volume)
 
@@ -403,7 +424,7 @@ class LoopbackBlockDeviceAPI(object):
                 volume = BlockDeviceVolume(
                     blockdevice_id=child.basename().decode('ascii'),
                     size=child.getsize(),
-                    host=host_name,
+                    host=host_name, dataset_id=uuid4(), # XXX
                 )
                 volumes.append(volume)
 

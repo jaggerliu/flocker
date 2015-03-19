@@ -104,12 +104,16 @@ class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
         with one ``manifestations`` if the ``api`` reports one locally
         attached volumes.
         """
-        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
-        attached_volume = self.api.attach_volume(
+        dataset_id = uuid4()
+        new_volume = self.api.create_volume(
+            dataset_id=dataset_id,
+            size=REALISTIC_BLOCKDEVICE_SIZE
+        )
+        self.api.attach_volume(
             new_volume.blockdevice_id, self.expected_hostname
         )
         expected_dataset = Dataset(
-            dataset_id=attached_volume.blockdevice_id,
+            dataset_id=dataset_id,
             maximum_size=REALISTIC_BLOCKDEVICE_SIZE
         )
         expected_manifestation = Manifestation(
@@ -122,7 +126,11 @@ class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
         ``BlockDeviceDeployer.discover_local_state`` does not consider remotely
         attached volumes.
         """
-        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+        dataset_id = uuid4()
+        new_volume = self.api.create_volume(
+            dataset_id=dataset_id,
+            size=REALISTIC_BLOCKDEVICE_SIZE
+        )
         self.api.attach_volume(new_volume.blockdevice_id, u'some.other.host')
         self.assertDiscoveredState(self.deployer, [])
 
@@ -131,7 +139,10 @@ class BlockDeviceDeployerDiscoverLocalStateTests(SynchronousTestCase):
         ``BlockDeviceDeployer.discover_local_state`` does not consider
         unattached volumes.
         """
-        self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+        dataset_id = uuid4()
+        self.api.create_volume(
+            dataset_id=dataset_id,
+            size=REALISTIC_BLOCKDEVICE_SIZE)
         self.assertDiscoveredState(self.deployer, [])
 
 
@@ -294,8 +305,34 @@ class IBlockDeviceAPITestsMixin(object):
         ``create_volume`` returns a ``BlockVolume`` that is returned by
         ``list_volumes``.
         """
-        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+        dataset_id = uuid4()
+        new_volume = self.api.create_volume(
+            dataset_id=dataset_id,
+            size=REALISTIC_BLOCKDEVICE_SIZE)
         self.assertIn(new_volume, self.api.list_volumes())
+
+    def test_listed_volume_attributes(self):
+        """
+        ``list_volumes`` returns ``BlockVolume`` s that have a dataset_id.
+        """
+        expected_dataset_id = uuid4()
+        self.api.create_volume(
+            dataset_id=expected_dataset_id,
+            size=REALISTIC_BLOCKDEVICE_SIZE
+        )
+        [listed_volume] = self.api.list_volumes()
+        self.assertEqual(expected_dataset_id, listed_volume.dataset_id)
+
+    def test_created_volume_attributes(self):
+        """
+        ``create_volume`` returns a ``BlockVolume`` that has a dataset_id
+        """
+        expected_dataset_id = uuid4()
+        new_volume = self.api.create_volume(
+            dataset_id=expected_dataset_id,
+            size=REALISTIC_BLOCKDEVICE_SIZE
+        )
+        self.assertEqual(expected_dataset_id, new_volume.dataset_id)
 
     def test_attach_unknown_volume(self):
         """
@@ -318,7 +355,12 @@ class IBlockDeviceAPITestsMixin(object):
         ``AlreadyAttachedVolume``.
         """
         host = u'192.0.2.123'
-        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+        dataset_id = uuid4()
+
+        new_volume = self.api.create_volume(
+            dataset_id=dataset_id,
+            size=REALISTIC_BLOCKDEVICE_SIZE
+        )
         attached_volume = self.api.attach_volume(
             new_volume.blockdevice_id, host=host
         )
@@ -335,7 +377,10 @@ class IBlockDeviceAPITestsMixin(object):
         An attempt to attach a ``BlockDeviceVolume`` already attached to
         another host raises ``AlreadyAttachedVolume``.
         """
-        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+        new_volume = self.api.create_volume(
+            dataset_id=uuid4(),
+            size=REALISTIC_BLOCKDEVICE_SIZE
+        )
         attached_volume = self.api.attach_volume(
             new_volume.blockdevice_id, host=u'192.0.2.123'
         )
@@ -352,11 +397,15 @@ class IBlockDeviceAPITestsMixin(object):
         An unattached ``BlockDeviceVolume`` can be attached.
         """
         expected_host = u'192.0.2.123'
-        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+        dataset_id = uuid4()
+        new_volume = self.api.create_volume(
+            dataset_id=dataset_id,
+            size=REALISTIC_BLOCKDEVICE_SIZE)
         expected_volume = BlockDeviceVolume(
             blockdevice_id=new_volume.blockdevice_id,
             size=new_volume.size,
             host=expected_host,
+            dataset_id=dataset_id
         )
         attached_volume = self.api.attach_volume(
             blockdevice_id=new_volume.blockdevice_id,
@@ -368,12 +417,16 @@ class IBlockDeviceAPITestsMixin(object):
         """
         An attached ``BlockDeviceVolume`` is listed.
         """
+        dataset_id = uuid4()
         expected_host = u'192.0.2.123'
-        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+        new_volume = self.api.create_volume(
+            dataset_id=dataset_id,
+            size=REALISTIC_BLOCKDEVICE_SIZE)
         expected_volume = BlockDeviceVolume(
             blockdevice_id=new_volume.blockdevice_id,
             size=new_volume.size,
             host=expected_host,
+            dataset_id=dataset_id,
         )
         self.api.attach_volume(
             blockdevice_id=new_volume.blockdevice_id,
@@ -387,8 +440,15 @@ class IBlockDeviceAPITestsMixin(object):
         ``BlockDeviceVolume``s.
         """
         expected_host = u'192.0.2.123'
-        new_volume1 = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
-        new_volume2 = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+
+        new_volume1 = self.api.create_volume(
+            dataset_id=uuid4(),
+            size=REALISTIC_BLOCKDEVICE_SIZE
+        )
+        new_volume2 = self.api.create_volume(
+            dataset_id=uuid4(),
+            size=REALISTIC_BLOCKDEVICE_SIZE
+        )
         attached_volume = self.api.attach_volume(
             blockdevice_id=new_volume2.blockdevice_id,
             host=expected_host
@@ -403,8 +463,14 @@ class IBlockDeviceAPITestsMixin(object):
         ``attach_volume`` can attach multiple block devices to a single host.
         """
         expected_host = u'192.0.2.123'
-        volume1 = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
-        volume2 = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+        volume1 = self.api.create_volume(
+            dataset_id=uuid4(),
+            size=REALISTIC_BLOCKDEVICE_SIZE
+        )
+        volume2 = self.api.create_volume(
+            dataset_id=uuid4(),
+            size=REALISTIC_BLOCKDEVICE_SIZE
+        )
         attached_volume1 = self.api.attach_volume(
             volume1.blockdevice_id, host=expected_host
         )
@@ -435,7 +501,10 @@ class IBlockDeviceAPITestsMixin(object):
         ``get_device_path`` raises ``UnattachedVolume`` if the supplied
         ``blockdevice_id`` corresponds to an unattached volume.
         """
-        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+        new_volume = self.api.create_volume(
+            dataset_id=uuid4(),
+            size=REALISTIC_BLOCKDEVICE_SIZE
+        )
         exception = self.assertRaises(
             UnattachedVolume,
             self.api.get_device_path,
@@ -448,7 +517,10 @@ class IBlockDeviceAPITestsMixin(object):
         ``get_device_path`` returns a ``FilePath`` to the device representing
         the attached volume.
         """
-        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+        new_volume = self.api.create_volume(
+            dataset_id=uuid4(),
+            size=REALISTIC_BLOCKDEVICE_SIZE
+        )
         attached_volume = self.api.attach_volume(
             new_volume.blockdevice_id,
             u'192.0.2.123'
@@ -464,7 +536,10 @@ class IBlockDeviceAPITestsMixin(object):
         ``get_device_path`` returns the same ``FilePath`` for the volume device
         when called multiple times.
         """
-        new_volume = self.api.create_volume(size=REALISTIC_BLOCKDEVICE_SIZE)
+        new_volume = self.api.create_volume(
+            dataset_id=uuid4(),
+            size=REALISTIC_BLOCKDEVICE_SIZE
+        )
         attached_volume = self.api.attach_volume(
             new_volume.blockdevice_id,
             u'192.0.2.123'
@@ -599,7 +674,10 @@ class LoopbackBlockDeviceAPIImplementationTests(SynchronousTestCase):
         api = loopbackblockdeviceapi_for_test(test_case=self)
         # 1GB
         apparent_size = REALISTIC_BLOCKDEVICE_SIZE
-        volume = api.create_volume(size=apparent_size)
+        volume = api.create_volume(
+            dataset_id=uuid4(),
+            size=apparent_size
+        )
         backing_file = api._root_path.descendant(
             ['unattached', volume.blockdevice_id]
         )
@@ -620,13 +698,14 @@ class LoopbackBlockDeviceAPIImplementationTests(SynchronousTestCase):
         """
         expected_size = REALISTIC_BLOCKDEVICE_SIZE
         api = loopbackblockdeviceapi_for_test(test_case=self)
-        blockdevice_volume = BlockDeviceVolume(
-            blockdevice_id=unicode(uuid4()),
+        expected_dataset_id = uuid4()
+        blockdevice_volume = BlockDeviceVolume.from_dataset_id(
             size=expected_size,
+            dataset_id=expected_dataset_id,
         )
         with (api._root_path
               .child('unattached')
-              .child(blockdevice_volume.blockdevice_id)
+              .child(blockdevice_volume.blockdevice_id.encode('ascii'))
               .open('wb')) as f:
             f.truncate(expected_size)
         self.assertEqual([blockdevice_volume], api.list_volumes())
@@ -638,22 +717,21 @@ class LoopbackBlockDeviceAPIImplementationTests(SynchronousTestCase):
         """
         expected_size = REALISTIC_BLOCKDEVICE_SIZE
         expected_host = u'192.0.2.123'
+        expected_dataset_id = uuid4()
         api = loopbackblockdeviceapi_for_test(test_case=self)
 
-        blockdevice_id = unicode(uuid4())
+        blockdevice_volume = BlockDeviceVolume.from_dataset_id(
+            size=expected_size,
+            host=expected_host,
+            dataset_id=expected_dataset_id,
+        )
 
         host_dir = api._root_path.descendant([
             b'attached', expected_host.encode("utf-8")
         ])
         host_dir.makedirs()
-        with host_dir.child(blockdevice_id).open('wb') as f:
+        with host_dir.child(blockdevice_volume.blockdevice_id).open('wb') as f:
             f.truncate(expected_size)
-
-        blockdevice_volume = BlockDeviceVolume(
-            blockdevice_id=blockdevice_id,
-            size=expected_size,
-            host=expected_host,
-        )
 
         self.assertEqual([blockdevice_volume], api.list_volumes())
 
