@@ -273,14 +273,17 @@ def cluster_for_test(test_case, node_addresses, agent_command):
     # Start servers; eventually we will have these already running on
     # nodes, but for now needs to be done manually.
     # https://clusterhq.atlassian.net/browse/FLOC-1383
-
+    control_service_name = b"flocker-control-%s" % (random_name(),)
     control_service = remote_service_for_test(
         test_case,
         sorted(node_addresses)[0],
-        [b"flocker-control",
-         b"--data-path",
-         b"/tmp/flocker.acceptance.test_api.cluster_for_test.%s" % (
-             random_name(),)]
+        [b"sh", "-c",
+
+         b"flocker-control "
+         b"--data-path "
+         b"/tmp/flocker.acceptance.test_api.cluster_for_test.%s "
+         b"> "
+         b"/tmp/%s.log" % (control_service_name, control_service_name)]
     )
 
     # https://clusterhq.atlassian.net/browse/FLOC-1382
