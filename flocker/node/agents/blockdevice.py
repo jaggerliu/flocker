@@ -227,6 +227,21 @@ class BlockDeviceVolume(PRecord):
             blockdevice_id=u"block-{0}".format(dataset_id),
         )
 
+    @classmethod
+    def from_blockdevice_id(cls, blockdevice_id, size, host=None):
+        """
+        Create a new ``BlockDeviceVolume`` with a ``dataset_id`` derived from the given ``blockdevice_id``.
+
+        This reverses the transformation performed by ``from_dataset_id``.
+
+        Parameters accepted have the same meaning as the attributes of this type.
+        """
+        dataset_id = UUID(blockdevice_id[6:]) # "block-"
+        return cls(
+            size=size, host=host, dataset_id=dataset_id,
+            blockdevice_id=blockdevice_id,
+        )
+
 def _losetup_list_parse(output):
     """
     Parse the output of ``losetup --all`` which varies depending on the
@@ -411,10 +426,9 @@ class LoopbackBlockDeviceAPI(object):
         volumes = []
         for child in self._root_path.child('unattached').children():
             blockdevice_id = child.basename().decode('ascii')
-            dataset_id = UUID(blockdevice_id[6:]) # "block-"
-            volume = BlockDeviceVolume(
+            volume = BlockDeviceVolume.from_blockdevice_id(
                 blockdevice_id=blockdevice_id,
-                size=child.getsize(), dataset_id=dataset_id,
+                size=child.getsize(),
             )
             volumes.append(volume)
 
@@ -422,11 +436,10 @@ class LoopbackBlockDeviceAPI(object):
             host_name = host_directory.basename().decode('ascii')
             for child in host_directory.children():
                 blockdevice_id = child.basename().decode('ascii')
-                dataset_id = UUID(blockdevice_id[6:]) # "block-"
-                volume = BlockDeviceVolume(
+                volume = BlockDeviceVolume.from_blockdevice_id(
                     blockdevice_id=blockdevice_id,
                     size=child.getsize(),
-                    host=host_name, dataset_id=dataset_id,
+                    host=host_name,
                 )
                 volumes.append(volume)
 
