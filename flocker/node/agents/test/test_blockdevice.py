@@ -315,34 +315,7 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
                 ),
             ]
         )
-        desired_configuration_bytes = b"""
-        {
-            "nodes": [
-                {
-                    "applications": [],
-                    "$__class__$": "Node",
-                    "hostname": "172.16.255.250",
-                    "manifestations": {
-                        "ce070c80-2652-4b3d-8da5-239596597f44": {
-                            "$__class__$": "Manifestation",
-                            "primary": true,
-                            "dataset": {
-                                "deleted": false,
-                                "dataset_id": "ce070c80-2652-4b3d-8da5-239596597f44",
-                                "$__class__$": "Dataset",
-                                "maximum_size": 67108864,
-                                "metadata": {
-                                    "name": "my_volume"
-                                }
-                            }
-                        }
-                    }
-                }
-            ],
-            "$__class__$": "Deployment"
-        }
-        """
-        # desired_configuration = wire_decode(desired_configuration_bytes)
+
         desired_configuration = Deployment(
             nodes=[
                 Node(
