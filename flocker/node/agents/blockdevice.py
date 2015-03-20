@@ -570,14 +570,22 @@ class BlockDeviceDeployer(PRecord):
         else:
             [this_node_config] = potential_configs
 
-        configured = set(
-            manifestation for manifestation in
+        configured_dataset_ids = set(
+            manifestation.dataset.dataset_id for manifestation in
             this_node_config.manifestations.values()
             # Don't create deleted datasets
             if not manifestation.dataset.deleted
         )
 
-        to_create = configured.difference(local_state.manifestations)
+        local_dataset_ids = set(
+            manifestation.dataset.dataset_id for manifestation in
+            local_state.manifestations
+        )
+
+        manifestations_to_create = set(
+            this_node_config.manifestations[dataset_id] for dataset_id in
+            configured_dataset_ids.difference(local_dataset_ids)
+        )
 
         # TODO check for non-None size on dataset; cannot create block devices
         # of unspecified size.
@@ -587,6 +595,6 @@ class BlockDeviceDeployer(PRecord):
                 mountpoint=self._mountpath_for_manifestation(manifestation)
             )
             for manifestation
-            in to_create
+            in manifestations_to_create
         )
         return InParallel(changes=creates)
