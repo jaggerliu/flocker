@@ -307,6 +307,8 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
                     dataset=Dataset(
                         dataset_id=expected_dataset_id,
                         maximum_size=REALISTIC_BLOCKDEVICE_SIZE,
+                        # Dataset state will always have empty metadata and
+                        # deleted will always be False.
                         metadata={},
                         deleted=False,
                     )
@@ -351,7 +353,11 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
                             dataset=Dataset(
                                 dataset_id=expected_dataset_id,
                                 maximum_size=REALISTIC_BLOCKDEVICE_SIZE,
-                                metadata={"name": "my_volume"}
+                                # Configuration contains metadata and deleted
+                                # attributes, but the state will always have
+                                # empty metadata and deleted=False, never True.
+                                metadata={"name": "my_volume"},
+                                deleted=False,
                             )
                         )
                     }
@@ -365,8 +371,6 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
             desired_configuration
         )
 
-        # If Deployer is buggy and not overriding cluster state
-        # with local state this would result in a dataset creation action:
         expected_changes = InParallel(changes=[])
 
         self.assertEqual(expected_changes, actual_changes)
