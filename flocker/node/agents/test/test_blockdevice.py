@@ -287,8 +287,66 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
 
     def test_it(self):
         from flocker.control._persistence import wire_decode
-        local_state = wire_decode("{\"paths\": {\"ce070c80-2652-4b3d-8da5-239596597f44\": {\"path\": \"/flocker/ce070c80-2652-4b3d-8da5-239596597f44\", \"$__class__$\": \"FilePath\"}}, \"$__class__$\": \"NodeState\", \"hostname\": \"172.16.255.250\", \"used_ports\": [], \"running\": [], \"manifestations\": [{\"$__class__$\": \"Manifestation\", \"primary\": true, \"dataset\": {\"deleted\": false, \"dataset_id\": \"ce070c80-2652-4b3d-8da5-239596597f44\", \"$__class__$\": \"Dataset\", \"maximum_size\": 67108864, \"metadata\": {}}}], \"not_running\": []}")
-        desired_configuration = wire_decode("{\"nodes\": [{\"applications\": [], \"$__class__$\": \"Node\", \"hostname\": \"172.16.255.250\", \"manifestations\": {\"ce070c80-2652-4b3d-8da5-239596597f44\": {\"$__class__$\": \"Manifestation\", \"primary\": true, \"dataset\": {\"deleted\": false, \"dataset_id\": \"ce070c80-2652-4b3d-8da5-239596597f44\", \"$__class__$\": \"Dataset\", \"maximum_size\": 67108864, \"metadata\": {\"name\": \"my_volume\"}}}}}], \"$__class__$\": \"Deployment\"}")
+        local_state_bytes = b"""
+        {
+            "paths": {
+                "ce070c80-2652-4b3d-8da5-239596597f44": {
+                    "path": "/flocker/ce070c80-2652-4b3d-8da5-239596597f44",
+                    "$__class__$": "FilePath"
+                }
+            },
+            "$__class__$": "NodeState",
+            "hostname": "172.16.255.250",
+            "used_ports": [],
+            "running": [],
+            "manifestations": [
+                {
+                    "$__class__$": "Manifestation",
+                    "primary": true,
+                    "dataset": {
+                        "deleted": false,
+                        "dataset_id": "ce070c80-2652-4b3d-8da5-239596597f44",
+                        "$__class__$": "Dataset",
+                        "maximum_size": 67108864,
+                        "metadata": {}
+                    }
+                }
+            ],
+            "not_running": []
+        }
+        """
+
+        local_state = wire_decode(local_state_bytes)
+
+        desired_configuration_bytes = b"""
+        {
+            "nodes": [
+                {
+                    "applications": [],
+                    "$__class__$": "Node",
+                    "hostname": "172.16.255.250",
+                    "manifestations": {
+                        "ce070c80-2652-4b3d-8da5-239596597f44": {
+                            "$__class__$": "Manifestation",
+                            "primary": true,
+                            "dataset": {
+                                "deleted": false,
+                                "dataset_id": "ce070c80-2652-4b3d-8da5-239596597f44",
+                                "$__class__$": "Dataset",
+                                "maximum_size": 67108864,
+                                "metadata": {
+                                    "name": "my_volume"
+                                }
+                            }
+                        }
+                    }
+                }
+            ],
+            "$__class__$": "Deployment"
+        }
+        """
+        desired_configuration = wire_decode(desired_configuration_bytes)
+
         cluster_state = None
 
         actual_changes = self._calculate_changes(u"172.16.255.250", local_state, desired_configuration)
