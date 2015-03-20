@@ -292,38 +292,27 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
         configuration do not result in ``CreateBlockDeviceDataset`` state
         changes.
         """
-        from flocker.control._persistence import wire_decode
-        local_state_bytes = b"""
-        {
-            "paths": {
-                "ce070c80-2652-4b3d-8da5-239596597f44": {
-                    "path": "/flocker/ce070c80-2652-4b3d-8da5-239596597f44",
-                    "$__class__$": "FilePath"
-                }
+        expected_hostname = u'192.0.2.123'
+        expected_dataset_id = unicode(uuid4())
+        local_state = NodeState(
+            hostname=expected_hostname,
+            paths={
+                expected_dataset_id: FilePath(
+                    u'/flocker/{}'.format(expected_dataset_id)
+                )
             },
-            "$__class__$": "NodeState",
-            "hostname": "172.16.255.250",
-            "used_ports": [],
-            "running": [],
-            "manifestations": [
-                {
-                    "$__class__$": "Manifestation",
-                    "primary": true,
-                    "dataset": {
-                        "deleted": false,
-                        "dataset_id": "ce070c80-2652-4b3d-8da5-239596597f44",
-                        "$__class__$": "Dataset",
-                        "maximum_size": 67108864,
-                        "metadata": {}
-                    }
-                }
-            ],
-            "not_running": []
-        }
-        """
-
-        local_state = wire_decode(local_state_bytes)
-
+            manifestations=[
+                Manifestation(
+                    primary=True,
+                    dataset=Dataset(
+                        dataset_id=expected_dataset_id,
+                        maximum_size=REALISTIC_BLOCKDEVICE_SIZE,
+                        metadata={},
+                        deleted=False,
+                    )
+                ),
+            ]
+        )
         desired_configuration_bytes = b"""
         {
             "nodes": [
@@ -351,11 +340,30 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
             "$__class__$": "Deployment"
         }
         """
-        desired_configuration = wire_decode(desired_configuration_bytes)
+        # desired_configuration = wire_decode(desired_configuration_bytes)
+        desired_configuration = Deployment(
+            nodes=[
+                Node(
+                    hostname=expected_hostname,
+                    manifestations={
+                        expected_dataset_id: Manifestation(
+                            primary=True,
+                            dataset=Dataset(
+                                dataset_id=expected_dataset_id,
+                                maximum_size=REALISTIC_BLOCKDEVICE_SIZE,
+                                metadata={"name": "my_volume"}
+                            )
+                        )
+                    }
+                )
+            ]
+        )
 
-        cluster_state = None
-
-        actual_changes = self._calculate_changes(u"172.16.255.250", local_state, desired_configuration)
+        actual_changes = self._calculate_changes(
+            expected_hostname,
+            local_state,
+            desired_configuration
+        )
 
         # If Deployer is buggy and not overriding cluster state
         # with local state this would result in a dataset creation action:
