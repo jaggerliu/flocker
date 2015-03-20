@@ -555,7 +555,6 @@ class BlockDeviceDeployer(PRecord):
                                           desired_configuration,
                                           current_cluster_state):
 
-
         from flocker.control._persistence import wire_encode
         Message.new(
             local_state=wire_encode(local_state),
@@ -570,7 +569,14 @@ class BlockDeviceDeployer(PRecord):
             this_node_config = Node(hostname=None)
         else:
             [this_node_config] = potential_configs
-        configured = set(this_node_config.manifestations.values())
+
+        configured = set(
+            manifestation for manifestation in
+            this_node_config.manifestations.values()
+            # Don't create deleted datasets
+            if not manifestation.dataset.deleted
+        )
+
         to_create = configured.difference(local_state.manifestations)
 
         # TODO check for non-None size on dataset; cannot create block devices
