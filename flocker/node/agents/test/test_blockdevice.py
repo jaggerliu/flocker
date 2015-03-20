@@ -285,7 +285,13 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
 
         self.assertEqual(expected_changes, actual_changes)
 
-    def test_it(self):
+    def test_match_configuration_to_state_of_datasets(self):
+        """
+        Dataset creation state changes are calculated by dataset_id only.
+        Discovered datasets with different attributes to those in the
+        configuration do not result in ``CreateBlockDeviceDataset`` state
+        changes.
+        """
         from flocker.control._persistence import wire_decode
         local_state_bytes = b"""
         {
