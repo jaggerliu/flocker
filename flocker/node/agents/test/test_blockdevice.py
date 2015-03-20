@@ -348,6 +348,48 @@ class BlockDeviceDeployerCalculateNecessaryStateChangesTests(
 
         self.assertEqual(expected_changes, actual_changes)
 
+    def test_ignore_deleted_datasets(self):
+        """
+        Deleted datasets in the supplied configuration do not result in
+        ``CreateBlockDeviceDataset`` changes.
+        """
+        expected_hostname = u'192.0.2.123'
+        expected_dataset_id = unicode(uuid4())
+        local_state = NodeState(
+            hostname=expected_hostname,
+            paths={},
+            manifestations=[]
+        )
+
+        desired_configuration = Deployment(
+            nodes=[
+                Node(
+                    hostname=expected_hostname,
+                    manifestations={
+                        expected_dataset_id: Manifestation(
+                            primary=True,
+                            dataset=Dataset(
+                                dataset_id=expected_dataset_id,
+                                maximum_size=REALISTIC_BLOCKDEVICE_SIZE,
+                                # There's a dataset in the configuration but
+                                # it's deleted and should not be recreated.
+                                deleted=True,
+                            )
+                        )
+                    }
+                )
+            ]
+        )
+
+        actual_changes = self._calculate_changes(
+            expected_hostname,
+            local_state,
+            desired_configuration
+        )
+        expected_changes = InParallel(changes=[])
+
+        self.assertEqual(expected_changes, actual_changes)
+
 
 class IBlockDeviceAPITestsMixin(object):
     """
